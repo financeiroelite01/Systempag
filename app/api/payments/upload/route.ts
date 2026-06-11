@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { extractPaymentDataFromPdf } from '@/lib/pdf-extractor';
+import { createHash } from 'crypto';
 
 function sanitizeFileName(fileName: string) {
   return fileName
@@ -30,13 +31,36 @@ export async function POST(request: Request) {
 
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
+
+  // --- Bloqueio de arquivo duplicado via hash SHA-256 ---
+  const fileHash = createHash('sha256').update(buffer).digest('hex');
+
+  const { data: existing } = await supabase
+    .from('payments')
+    .select('id, reference, file_name')
+    .eq('file_hash', fileHash)
+    .eq('created_by', session.user.id)
+    .maybeSingle();
+
+  if (existing) {
+    return NextResponse.json(
+      {
+        message: `Este arquivo já foi enviado anteriormente (referência: "${existing.reference || existing.file_name}"). Envio bloqueado para evitar duplicidade.`
+      },
+      { status: 409 }
+    );
+  }
+  // ------------------------------------------------------
+
   const safeName = sanitizeFileName(file.name);
   const filePath = `${session.user.id}/${Date.now()}-${safeName}`;
 
-  const { error: uploadError } = await supabase.storage.from('payment-pdfs').upload(filePath, buffer, {
-    contentType: 'application/pdf',
-    upsert: false
-  });
+  const { error: uploadError } = await supabase.storage
+    .from('payment-pdfs')
+    .upload(filePath, buffer, {
+      contentType: 'application/pdf',
+      upsert: false
+    });
 
   if (uploadError) {
     return NextResponse.json({ message: uploadError.message }, { status: 400 });
@@ -66,6 +90,7 @@ export async function POST(request: Request) {
     company_id: companyId,
     ...extracted,
     file_path: filePath,
+    file_hash: fileHash,
     created_by: session.user.id
   });
 
@@ -74,8 +99,9 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    message: extracted.extraction_status === 'processed'
-      ? 'PDF enviado e dados extraídos com sucesso.'
-      : 'PDF enviado. Revise os campos extraídos antes de usar no fechamento.'
+    message:
+      extracted.extraction_status === 'processed'
+        ? 'PDF enviado e dados extraídos com sucesso.'
+        : 'PDF enviado. Revise os campos extraídos antes de usar no fechamento.'
   });
 }
