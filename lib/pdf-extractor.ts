@@ -55,7 +55,7 @@ function extractPaymentDate(text: string) {
 
 function extractValue(text: string) {
   const labeledMatch = text.match(
-    /valor(?: total| do pagamento)?[:\s-]+(R\$\s?\d{1,3}(?:\.\d{3})*,\d{2})/i
+    /valor(?: total| do pagamento| pago)?[:\s-]+(R\$\s?\d{1,3}(?:\.\d{3})*,\d{2})/i
   );
   if (labeledMatch?.[1]) return parseBrazilianCurrency(labeledMatch[1]);
   return extractHighestCurrency(text);
