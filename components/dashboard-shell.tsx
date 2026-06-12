@@ -61,6 +61,8 @@ export function DashboardShell({
 
   const [payments, setPayments] = useState<Payment[]>(initialPayments);
   const [selectedCompany, setSelectedCompany] = useState<string>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -75,9 +77,13 @@ export function DashboardShell({
   const [reuploadModal, setReuploadModal] = useState<{ fileName: string; companyId: string; companyName: string } | null>(null);
 
   const filteredPayments = useMemo(() => {
-    if (selectedCompany === 'all') return payments;
-    return payments.filter((p) => p.company_id === selectedCompany);
-  }, [payments, selectedCompany]);
+    return payments.filter((p) => {
+      if (selectedCompany !== 'all' && p.company_id !== selectedCompany) return false;
+      if (startDate && (!p.payment_date || p.payment_date < startDate)) return false;
+      if (endDate && (!p.payment_date || p.payment_date > endDate)) return false;
+      return true;
+    });
+  }, [payments, selectedCompany, startDate, endDate]);
 
   const totalAmount = filteredPayments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
   const processedCount = filteredPayments.filter((p) => p.extraction_status === 'processed').length;
@@ -450,14 +456,20 @@ export function DashboardShell({
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
               <h3 className="text-base font-semibold">Relatórios em Excel</h3>
               <p className="mt-2 text-sm text-slate-500">
-                Baixe um arquivo por empresa com as colunas: Data, Referência, Valor, Banco e NF.
+                Baixe um arquivo por empresa com as colunas: Data de Pgt, Referência, Valor, Banco e NF. Use o filtro de período abaixo para gerar relatórios mês a mês.
               </p>
               <div className="mt-5 space-y-3">
                 {companies.map((c) => (
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => window.open(`/api/reports/${c.id}`, '_blank')}
+                    onClick={() => {
+                      const params = new URLSearchParams();
+                      if (startDate) params.set('start', startDate);
+                      if (endDate) params.set('end', endDate);
+                      const query = params.toString();
+                      window.open(`/api/reports/${c.id}${query ? `?${query}` : ''}`, '_blank');
+                    }}
                     className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-medium text-slate-700 hover:border-brand-300 hover:bg-brand-50"
                   >
                     <span>{c.display_name || c.legal_name}</span>
@@ -476,16 +488,43 @@ export function DashboardShell({
               <h2 className="text-lg font-semibold">Lista de pagamentos</h2>
               <p className="text-sm text-slate-500">Clique em Editar para ajustar um registro diretamente na tabela.</p>
             </div>
-            <select
-              value={selectedCompany}
-              onChange={(e) => setSelectedCompany(e.target.value)}
-              className="w-full md:w-72"
-            >
-              <option value="all">Todas as empresas</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>{c.display_name || c.legal_name}</option>
-              ))}
-            </select>
+            <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:items-center">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-slate-500 whitespace-nowrap">De</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                />
+                <label className="text-sm text-slate-500 whitespace-nowrap">até</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                />
+                {(startDate || endDate) && (
+                  <button
+                    type="button"
+                    onClick={() => { setStartDate(''); setEndDate(''); }}
+                    className="text-sm font-medium text-brand-700 hover:underline whitespace-nowrap"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+              <select
+                value={selectedCompany}
+                onChange={(e) => setSelectedCompany(e.target.value)}
+                className="w-full md:w-72"
+              >
+                <option value="all">Todas as empresas</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.display_name || c.legal_name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="mt-6 overflow-x-auto">
@@ -493,7 +532,7 @@ export function DashboardShell({
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500">
                   <th className="px-3 py-3 font-medium">Empresa</th>
-                  <th className="px-3 py-3 font-medium">Data</th>
+                  <th className="px-3 py-3 font-medium">Data de Pgt</th>
                   <th className="px-3 py-3 font-medium">Referência</th>
                   <th className="px-3 py-3 font-medium">Valor</th>
                   <th className="px-3 py-3 font-medium">Banco</th>

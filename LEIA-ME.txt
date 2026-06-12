@@ -1,0 +1,117 @@
+==========================================================
+ SYSTEMPAG — Arquivos corrigidos
+==========================================================
+
+⚠️ IMPORTANTE: esta pasta NÃO é o projeto completo.
+Contém APENAS os arquivos que foram criados/alterados
+nesta conversa. Arquivos como globals.css, package.json,
+next.config.js, .env, postcss.config.js, vercel.json etc.
+NÃO estão aqui porque nunca vi o conteúdo deles.
+
+==========================================================
+ COMO USAR COM GITHUB DESKTOP (recomendado)
+==========================================================
+
+1. Abra o GitHub Desktop
+2. File → Clone repository
+3. Selecione: financeiroelite01/Systempag
+4. Clone em uma pasta NOVA, por exemplo:
+   D:\hugo\Systempag-novo
+
+5. Depois do clone, copie TODAS as pastas/arquivos desta
+   pasta (systempag-full) por cima da pasta clonada,
+   substituindo os arquivos existentes.
+
+   Estrutura que será copiada:
+
+   app/
+     layout.tsx
+     page.tsx
+     dashboard/page.tsx
+     login/page.tsx
+     api/
+       companies/route.ts
+       payments/
+         manual/route.ts
+         upload/route.ts          <- ATUALIZADO (bloqueio duplicata)
+         [id]/route.ts            <- NOVO (editar/excluir)
+       reports/
+         [companyId]/route.ts     <- ATUALIZADO (filtro de data)
+   components/
+     dashboard-shell.tsx           <- ATUALIZADO (edição/exclusão,
+                                       filtro de data, modal reupload)
+   lib/
+     pdf-extractor.ts              <- ATUALIZADO (Valor Pago)
+     utils.ts
+     supabase/
+       client.ts
+       server.ts
+   middleware.ts
+   pdf-parse.d.ts
+   tailwind.config.ts
+
+6. Volte ao GitHub Desktop. Ele vai mostrar todos os
+   arquivos alterados na aba "Changes".
+
+7. Escreva uma mensagem de commit, ex:
+   "Corrige extracao de valor, filtro de data, edicao/exclusao"
+
+8. Clique em "Commit to main"
+
+9. Clique em "Push origin" (botão no topo)
+
+A Vercel faz o redeploy automaticamente em 1-2 minutos.
+
+
+==========================================================
+ ANTES DO PUSH — RODAR NO SUPABASE (se ainda não rodou)
+==========================================================
+
+No SQL Editor do Supabase, execute o arquivo
+"migration_add_file_hash.sql" enviado anteriormente,
+que adiciona a coluna necessária para o bloqueio de
+arquivos duplicados.
+
+Se essa coluna não existir, o UPLOAD vai dar erro.
+
+
+==========================================================
+ RESUMO DO QUE FOI CORRIGIDO
+==========================================================
+
+1. lib/pdf-extractor.ts
+   - Reconhece "Valor Pago (R$): 350,00" e variações
+
+2. app/api/payments/[id]/route.ts (NOVO ARQUIVO)
+   - PATCH = editar pagamento
+   - DELETE = excluir pagamento
+   - Sem esse arquivo, editar/excluir dava 404
+
+3. app/api/payments/upload/route.ts
+   - Bloqueia upload de PDF já enviado (hash SHA-256)
+
+4. app/api/reports/[companyId]/route.ts
+   - Aceita ?start=AAAA-MM-DD&end=AAAA-MM-DD
+   - Filtra relatório por período
+
+5. components/dashboard-shell.tsx
+   - Editar/excluir na lista sem reload
+   - Modal "Lançamento excluído, lançar novamente?"
+   - Filtro de período (De/até) + coluna "Data de Pgt"
+   - Atualização otimista da lista
+
+
+==========================================================
+ DEPOIS DO DEPLOY — TESTAR
+==========================================================
+
+1. Force refresh no navegador: Ctrl + Shift + R
+2. Editar um pagamento → deve salvar sem voltar ao valor
+   antigo após F5
+3. Excluir um pagamento → modal de relançar deve aparecer
+4. Upload do mesmo PDF duas vezes → segunda vez deve
+   ser bloqueada
+5. Upload de comprovante com "Valor Pago (R$): X,XX" →
+   deve extrair o valor corretamente
+6. Filtro de data → lista e relatório devem respeitar
+   o período selecionado
