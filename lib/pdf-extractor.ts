@@ -54,10 +54,20 @@ function extractPaymentDate(text: string) {
 }
 
 function extractValue(text: string) {
-  const labeledMatch = text.match(
-    /valor(?: total| do pagamento| pago)?[:\s-]+(R\$\s?\d{1,3}(?:\.\d{3})*,\d{2})/i
-  );
-  if (labeledMatch?.[1]) return parseBrazilianCurrency(labeledMatch[1]);
+  // Prioridade 1: "Valor Pago" — formato comum em comprovantes Sicredi/boletos
+  //   Aceita: "Valor Pago (R$): 350,00" | "Valor Pago: R$ 350,00" | "Valor Pago R$350,00"
+  let match = text.match(/valor\s*pago\s*(?:\(r\$\))?\s*[:\s-]+\s*(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+  if (match) return parseBrazilianCurrency(match[1]);
+
+  // Prioridade 2: "Valor Total" ou "Valor do Pagamento"
+  match = text.match(/valor\s*(?:total|do pagamento)\s*(?:\(r\$\))?\s*[:\s-]+\s*(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+  if (match) return parseBrazilianCurrency(match[1]);
+
+  // Prioridade 3: "Valor" genérico (qualquer formato com R$ logo após)
+  match = text.match(/valor\s*(?:\(r\$\))?\s*[:\s-]+\s*(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+  if (match) return parseBrazilianCurrency(match[1]);
+
+  // Fallback: maior valor monetário com R$ encontrado no texto
   return extractHighestCurrency(text);
 }
 
