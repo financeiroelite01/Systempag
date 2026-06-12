@@ -71,6 +71,9 @@ export function DashboardShell({
   // Estado de confirmação de exclusão
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Modal de reupload após exclusão: guarda fileName e companyId do pagamento excluído
+  const [reuploadModal, setReuploadModal] = useState<{ fileName: string; companyId: string; companyName: string } | null>(null);
+
   const filteredPayments = useMemo(() => {
     if (selectedCompany === 'all') return payments;
     return payments.filter((p) => p.company_id === selectedCompany);
@@ -256,6 +259,9 @@ export function DashboardShell({
   async function deletePayment(id: string) {
     setLoadingAction(`delete-${id}`);
 
+    // Guarda os dados do pagamento antes de remover (para o modal de reupload)
+    const target = payments.find((p) => p.id === id);
+
     // Atualização otimista: remove do estado local imediatamente
     setPayments((prev) => prev.filter((p) => p.id !== id));
     setDeletingId(null);
@@ -268,10 +274,37 @@ export function DashboardShell({
       await refreshPayments();
       showFeedback(data.message || 'Erro ao excluir.', 'error');
     } else {
-      showFeedback('Pagamento excluído.', 'success');
+      // Abre modal perguntando se quer lançar novamente
+      if (target) {
+        const company = companies.find((c) => c.id === target.company_id);
+        setReuploadModal({
+          fileName: target.reference,
+          companyId: target.company_id,
+          companyName: company?.display_name || company?.legal_name || 'empresa'
+        });
+      }
     }
 
     setLoadingAction(null);
+  }
+
+  // ─── Reupload após exclusão ──────────────────────────────────────────────────
+  async function handleReupload(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoadingAction('reupload');
+    const form = new FormData(event.currentTarget);
+
+    const response = await fetch('/api/payments/upload', {
+      method: 'POST',
+      body: form
+    });
+
+    const data = await response.json();
+    showFeedback(data.message || (response.ok ? 'PDF enviado.' : 'Erro no upload.'), response.ok ? 'success' : 'error');
+    setLoadingAction(null);
+    setReuploadModal(null);
+
+    if (response.ok) await refreshPayments();
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────────
@@ -642,6 +675,44 @@ export function DashboardShell({
           </div>
         </section>
       </section>
+
+      {/* Modal: pergunta se quer relançar o pagamento excluído */}
+      {reuploadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-soft">
+            <h3 className="text-lg font-semibold text-slate-900">Lançamento excluído</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              O pagamento <span className="font-medium">"{reuploadModal.fileName}"</span> foi excluído.
+              Gostaria de lançar novamente?
+            </p>
+
+            <form onSubmit={handleReupload} className="mt-5 space-y-4">
+              <input type="hidden" name="companyId" value={reuploadModal.companyId} />
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Empresa: <span className="font-medium text-slate-800">{reuploadModal.companyName}</span>
+              </div>
+              <input type="file" name="file" accept="application/pdf" required />
+
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={loadingAction === 'reupload'}
+                  className="flex-1 rounded-2xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-500 disabled:opacity-70"
+                >
+                  {loadingAction === 'reupload' ? 'Enviando...' : 'Sim, lançar novamente'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReuploadModal(null)}
+                  className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Não
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
