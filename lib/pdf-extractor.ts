@@ -3,7 +3,7 @@ import pdfParse from 'pdf-parse';
 const bankList = [
   'Banco do Brasil',
   'Bradesco',
-  'Itaú',
+  'Ita[uú]',
   'Santander',
   'Caixa Econômica Federal',
   'Caixa',
@@ -37,9 +37,20 @@ function extractHighestCurrency(text: string) {
 }
 
 function extractBank(text: string) {
+  // Tenta casar o banco e capturar o restante do nome (ex: "ITAU UNIBANCO S A"),
+  // removendo o rótulo do campo seguinte que pode vir colado (formato invertido)
   for (const bank of bankList) {
-    if (new RegExp(bank, 'i').test(text)) return bank;
+    const match = text.match(new RegExp(bank + '[A-Za-zÀ-ÿ0-9\\s]*', 'i'));
+    if (match) {
+      const cleaned = match[0]
+        .replace(/Institui[cç][aã]o.*$/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return cleaned || match[0].trim();
+    }
   }
+
+  // Formato normal: "Banco: Nome do Banco"
   const labeled = text.match(/banco(?: do pagamento)?[:\s-]+([A-Za-zÀ-ÿ0-9 ]{3,40})/i);
   return labeled?.[1]?.trim() ?? null;
 }
@@ -54,17 +65,28 @@ function extractPaymentDate(text: string) {
 }
 
 function extractValue(text: string) {
-  // Prioridade 1: "Valor Pago" — formato comum em comprovantes Sicredi/boletos
-  //   Aceita: "Valor Pago (R$): 350,00" | "Valor Pago: R$ 350,00" | "Valor Pago R$350,00"
-  let match = text.match(/valor\s*pago\s*(?:\(r\$\))?\s*[:\s-]+\s*(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+  const num = '(\\d{1,3}(?:\\.\\d{3})*,\\d{2})';
+
+  // Alguns PDFs (ex: comprovantes Sicredi) extraem o texto em ordem invertida:
+  // "350,00Valor Pago (R$):" em vez de "Valor Pago (R$): 350,00"
+  // Por isso checamos os dois formatos para cada prioridade.
+
+  // Prioridade 1: "Valor Pago"
+  let match = text.match(new RegExp(num + '\\s*valor\\s*pago\\s*(?:\\(r\\$\\))?\\s*:', 'i'));
+  if (match) return parseBrazilianCurrency(match[1]);
+  match = text.match(new RegExp('valor\\s*pago\\s*(?:\\(r\\$\\))?\\s*[:\\s-]+\\s*(?:r\\$\\s*)?' + num, 'i'));
   if (match) return parseBrazilianCurrency(match[1]);
 
   // Prioridade 2: "Valor Total" ou "Valor do Pagamento"
-  match = text.match(/valor\s*(?:total|do pagamento)\s*(?:\(r\$\))?\s*[:\s-]+\s*(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+  match = text.match(new RegExp(num + '\\s*valor\\s*(?:total|do pagamento)\\s*(?:\\(r\\$\\))?\\s*:', 'i'));
+  if (match) return parseBrazilianCurrency(match[1]);
+  match = text.match(new RegExp('valor\\s*(?:total|do pagamento)\\s*(?:\\(r\\$\\))?\\s*[:\\s-]+\\s*(?:r\\$\\s*)?' + num, 'i'));
   if (match) return parseBrazilianCurrency(match[1]);
 
-  // Prioridade 3: "Valor" genérico (qualquer formato com R$ logo após)
-  match = text.match(/valor\s*(?:\(r\$\))?\s*[:\s-]+\s*(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+  // Prioridade 3: "Valor" genérico
+  match = text.match(new RegExp(num + '\\s*valor\\s*(?:\\(r\\$\\))?\\s*:', 'i'));
+  if (match) return parseBrazilianCurrency(match[1]);
+  match = text.match(new RegExp('valor\\s*(?:\\(r\\$\\))?\\s*[:\\s-]+\\s*(?:r\\$\\s*)?' + num, 'i'));
   if (match) return parseBrazilianCurrency(match[1]);
 
   // Fallback: maior valor monetário com R$ encontrado no texto
