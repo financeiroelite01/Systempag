@@ -14,7 +14,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   const body = await request.json();
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('payments')
     .update({
       reference: String(body.reference || '').trim(),
@@ -24,10 +24,18 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       amount: body.amount !== '' && body.amount !== null ? Number(body.amount) : null
     })
     .eq('id', params.id)
-    .eq('created_by', session.user.id); // garante que só o dono edita
+    .select('id'); // .select() é necessário para saber quantas linhas foram realmente afetadas
 
   if (error) {
     return NextResponse.json({ message: error.message }, { status: 400 });
+  }
+
+  // Se RLS bloquear silenciosamente, data vem como array vazio (sem erro)
+  if (!data || data.length === 0) {
+    return NextResponse.json(
+      { message: 'Não foi possível atualizar: registro não encontrado ou sem permissão (verifique RLS).' },
+      { status: 403 }
+    );
   }
 
   return NextResponse.json({ message: 'Pagamento atualizado com sucesso.' });
@@ -44,14 +52,21 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
     return NextResponse.json({ message: 'Não autenticado.' }, { status: 401 });
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('payments')
     .delete()
     .eq('id', params.id)
-    .eq('created_by', session.user.id); // garante que só o dono exclui
+    .select('id'); // necessário para saber se algo foi realmente excluído
 
   if (error) {
     return NextResponse.json({ message: error.message }, { status: 400 });
+  }
+
+  if (!data || data.length === 0) {
+    return NextResponse.json(
+      { message: 'Não foi possível excluir: registro não encontrado ou sem permissão (verifique RLS).' },
+      { status: 403 }
+    );
   }
 
   return NextResponse.json({ message: 'Pagamento excluído com sucesso.' });
