@@ -25,11 +25,24 @@ export async function GET(
     return NextResponse.json({ message: 'Empresa não encontrada.' }, { status: 404 });
   }
 
-  const { data: payments, error } = await supabase
+  // Lê filtro de período da query string: ?start=AAAA-MM-DD&end=AAAA-MM-DD
+  const { searchParams } = new URL(request.url);
+  const startDate = searchParams.get('start');
+  const endDate = searchParams.get('end');
+
+  let query = supabase
     .from('payments')
     .select('payment_date, reference, amount, bank_name, invoice_number')
-    .eq('company_id', params.companyId)
-    .order('payment_date', { ascending: false });
+    .eq('company_id', params.companyId);
+
+  if (startDate) {
+    query = query.gte('payment_date', startDate);
+  }
+  if (endDate) {
+    query = query.lte('payment_date', endDate);
+  }
+
+  const { data: payments, error } = await query.order('payment_date', { ascending: false });
 
   if (error) {
     return NextResponse.json({ message: error.message }, { status: 400 });
@@ -53,8 +66,15 @@ export async function GET(
   }]);
 
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Pagamentos');
+
   const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-  const filename = `${(company.display_name || company.legal_name).replace(/[^a-zA-Z0-9-_]/g, '-')}-relatorio.xlsx`;
+
+  // Inclui o período no nome do arquivo, se informado
+  const baseName = (company.display_name || company.legal_name).replace(/[^a-zA-Z0-9-_]/g, '-');
+  const periodSuffix = startDate || endDate
+    ? `-${startDate || 'inicio'}_a_${endDate || 'fim'}`
+    : '';
+  const filename = `${baseName}${periodSuffix}-relatorio.xlsx`;
 
   return new NextResponse(buffer, {
     status: 200,
