@@ -76,6 +76,22 @@ export function DashboardShell({
   // Modal de reupload após exclusão: guarda fileName e companyId do pagamento excluído
   const [reuploadModal, setReuploadModal] = useState<{ fileName: string; companyId: string; companyName: string } | null>(null);
 
+  // Upload em lote
+  type BatchFileResult = {
+    fileName: string;
+    status: 'success' | 'duplicate' | 'error';
+    message: string;
+    reference?: string;
+    amount?: number | null;
+    bank_name?: string | null;
+    payment_date?: string | null;
+  };
+  type BatchSummary = { total: number; success: number; duplicates: number; errors: number };
+  const [batchCompany, setBatchCompany] = useState<string>('');
+  const [batchFiles, setBatchFiles] = useState<FileList | null>(null);
+  const [batchResults, setBatchResults] = useState<BatchFileResult[] | null>(null);
+  const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
+
   const filteredPayments = useMemo(() => {
     return payments.filter((p) => {
       if (selectedCompany !== 'all' && p.company_id !== selectedCompany) return false;
@@ -294,6 +310,45 @@ export function DashboardShell({
     setLoadingAction(null);
   }
 
+  // ─── Upload em lote ─────────────────────────────────────────────────────────────
+  async function handleBatchUpload(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!batchFiles || batchFiles.length === 0 || !batchCompany) return;
+
+    setLoadingAction('batch');
+    setBatchResults(null);
+    setBatchSummary(null);
+
+    const form = new FormData();
+    form.append('companyId', batchCompany);
+    for (let i = 0; i < batchFiles.length; i++) {
+      form.append('files', batchFiles[i]);
+    }
+
+    const response = await fetch('/api/payments/upload-batch', {
+      method: 'POST',
+      body: form
+    });
+
+    const data = await response.json();
+    setLoadingAction(null);
+
+    if (!response.ok) {
+      showFeedback(data.message || 'Erro no upload em lote.', 'error');
+      return;
+    }
+
+    setBatchResults(data.results);
+    setBatchSummary(data.summary);
+    setBatchFiles(null);
+
+    // Reset do input de arquivo
+    const fileInput = document.querySelector<HTMLInputElement>('input[name="batch-files"]');
+    if (fileInput) fileInput.value = '';
+
+    if (data.summary.success > 0) await refreshPayments();
+  }
+
   // ─── Reupload após exclusão ──────────────────────────────────────────────────
   async function handleReupload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -418,6 +473,120 @@ export function DashboardShell({
             </form>
           </section>
         </div>
+
+        {/* Upload em lote */}
+        <section className="card p-6">
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl bg-brand-50 p-3 text-brand-700">
+              <Upload className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Upload em lote</h2>
+              <p className="text-sm text-slate-500">Envie até 10 comprovantes PDF de uma vez. Duplicados são detectados automaticamente.</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleBatchUpload} className="mt-6 grid gap-4 md:grid-cols-[1fr_auto]">
+            <div className="grid gap-4 md:grid-cols-2">
+              <select
+                value={batchCompany}
+                onChange={(e) => setBatchCompany(e.target.value)}
+                required
+                className="md:col-span-2"
+              >
+                <option value="" disabled>Selecione a empresa</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.display_name || c.legal_name}</option>
+                ))}
+              </select>
+              <div className="md:col-span-2">
+                <input
+                  type="file"
+                  name="batch-files"
+                  accept="application/pdf"
+                  multiple
+                  required
+                  onChange={(e) => setBatchFiles(e.target.files)}
+                />
+                {batchFiles && batchFiles.length > 0 && (
+                  <p className="mt-2 text-sm text-slate-500">
+                    {batchFiles.length} arquivo{batchFiles.length > 1 ? 's' : ''} selecionado{batchFiles.length > 1 ? 's' : ''}
+                    {batchFiles.length > 10 && (
+                      <span className="ml-2 font-medium text-red-600">— máximo 10 arquivos</span>
+                    )}
+                  </p>
+                )}
+              </div>
+            </div>
+            <button
+              type="submit"
+              disabled={loadingAction === 'batch' || !batchFiles || batchFiles.length === 0 || batchFiles.length > 10}
+              className="self-end rounded-2xl bg-brand-600 px-6 py-3 font-semibold text-white hover:bg-brand-500 disabled:opacity-70 whitespace-nowrap"
+            >
+              {loadingAction === 'batch' ? (
+                <span className="flex items-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                  Processando...
+                </span>
+              ) : 'Enviar lote'}
+            </button>
+          </form>
+
+          {/* Resultado do lote */}
+          {batchSummary && (
+            <div className="mt-6 space-y-4">
+              {/* Resumo */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-emerald-50 p-4 text-center">
+                  <p className="text-2xl font-semibold text-emerald-700">{batchSummary.success}</p>
+                  <p className="mt-1 text-xs font-medium text-emerald-600">Processados</p>
+                </div>
+                <div className="rounded-2xl bg-amber-50 p-4 text-center">
+                  <p className="text-2xl font-semibold text-amber-700">{batchSummary.duplicates}</p>
+                  <p className="mt-1 text-xs font-medium text-amber-600">Duplicados</p>
+                </div>
+                <div className="rounded-2xl bg-red-50 p-4 text-center">
+                  <p className="text-2xl font-semibold text-red-700">{batchSummary.errors}</p>
+                  <p className="mt-1 text-xs font-medium text-red-600">Erros</p>
+                </div>
+              </div>
+
+              {/* Lista detalhada */}
+              <div className="overflow-hidden rounded-2xl border border-slate-200">
+                {batchResults?.map((result, index) => (
+                  <div
+                    key={index}
+                    className={`flex items-start gap-3 border-b border-slate-100 px-4 py-3 last:border-0 ${
+                      result.status === 'success' ? 'bg-white' :
+                      result.status === 'duplicate' ? 'bg-amber-50/50' : 'bg-red-50/50'
+                    }`}
+                  >
+                    <span className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                      result.status === 'success' ? 'bg-emerald-100 text-emerald-700' :
+                      result.status === 'duplicate' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      {result.status === 'success' ? '✓' : result.status === 'duplicate' ? '=' : '✕'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-800">{result.fileName}</p>
+                      <p className="text-xs text-slate-500">{result.message}</p>
+                      {result.status === 'success' && result.reference && (
+                        <p className="mt-0.5 text-xs text-slate-400">
+                          {result.reference}
+                          {result.amount ? ` · R$ ${Number(result.amount).toFixed(2).replace('.', ',')}` : ''}
+                          {result.bank_name ? ` · ${result.bank_name}` : ''}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
 
         {/* Cadastro manual + relatórios */}
         <section className="card p-6">
