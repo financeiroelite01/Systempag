@@ -1,21 +1,15 @@
-// Server Component — sem 'use client' aqui
-import type { ReactNode } from 'react';
 import './globals.css';
-import { AppShell } from '@/components/app-shell';
+import type { Metadata } from 'next';
 
-export const metadata = {
-  title: 'Systempag - Gestão de Pagamentos',
-  description: 'Plataforma profissional de gestão de pagamentos e comprovantes'
+export const metadata: Metadata = {
+  title: 'Gestão Empresas SaaS',
+  description: 'Plataforma para gestão de pagamentos com leitura de PDF, dashboard e exportação em Excel.'
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
-      <body suppressHydrationWarning>
-        <AppShell>
-          {children}
-        </AppShell>
-      </body>
+    <html lang="pt-BR">
+      <body>{children}</body>
     </html>
   );
 }
