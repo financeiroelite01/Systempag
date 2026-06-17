@@ -5,100 +5,147 @@ import { useEffect, useState } from 'react';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const saved = localStorage.getItem('theme') as 'light' | 'dark' | null;
+    const saved = localStorage.getItem('sp-theme') as 'light' | 'dark' | null;
     const initial = saved || (prefersDark ? 'dark' : 'light');
+    applyTheme(initial);
     setTheme(initial);
-    document.documentElement.setAttribute('data-theme', initial);
-    setMounted(true);
   }, []);
 
-  const toggleTheme = () => {
+  function applyTheme(t: 'light' | 'dark') {
+    const root = document.documentElement;
+    if (t === 'dark') {
+      root.style.setProperty('--sp-bg', '#111827');
+      root.style.setProperty('--sp-bg2', '#1f2937');
+      root.style.setProperty('--sp-card', '#1f2937');
+      root.style.setProperty('--sp-text', '#f3f4f6');
+      root.style.setProperty('--sp-text2', '#9ca3af');
+      root.style.setProperty('--sp-border', '#374151');
+      root.style.setProperty('--sp-primary', '#3b82f6');
+      root.style.setProperty('--sp-primary-dark', '#1d4ed8');
+    } else {
+      root.style.setProperty('--sp-bg', '#f8fafc');
+      root.style.setProperty('--sp-bg2', '#ffffff');
+      root.style.setProperty('--sp-card', '#ffffff');
+      root.style.setProperty('--sp-text', '#1e293b');
+      root.style.setProperty('--sp-text2', '#64748b');
+      root.style.setProperty('--sp-border', '#e2e8f0');
+      root.style.setProperty('--sp-primary', '#0066cc');
+      root.style.setProperty('--sp-primary-dark', '#003d7a');
+    }
+  }
+
+  function toggleTheme() {
     const next = theme === 'light' ? 'dark' : 'light';
     setTheme(next);
-    localStorage.setItem('theme', next);
-    document.documentElement.setAttribute('data-theme', next);
-  };
-
-  // Evita flash de tema errado antes de montar
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-white" />
-    );
+    localStorage.setItem('sp-theme', next);
+    applyTheme(next);
   }
 
   return (
-    <div data-theme={theme} className="min-h-screen bg-background text-foreground transition-colors duration-300">
-      {/* Header Global */}
-      <header className="sticky top-0 z-50 border-b border-border bg-card shadow-sm">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: 'var(--sp-bg)',
+      color: 'var(--sp-text)',
+      transition: 'background-color 0.3s, color 0.3s'
+    }}>
+      {/* Header */}
+      <header style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+        borderBottom: '1px solid var(--sp-border)',
+        backgroundColor: 'var(--sp-card)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
+      }}>
+        <div style={{
+          maxWidth: '1280px',
+          margin: '0 auto',
+          padding: '0 1.5rem',
+          height: '64px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
           {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary-dark">
-              <span className="text-sm font-bold text-white">SP</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: 32, height: 32,
+              borderRadius: 8,
+              background: 'linear-gradient(135deg, var(--sp-primary), var(--sp-primary-dark))',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <span style={{ color: 'white', fontWeight: 700, fontSize: 14 }}>SP</span>
             </div>
-            <span className="text-lg font-semibold text-foreground">Systempag</span>
+            <span style={{ fontWeight: 600, fontSize: 18, color: 'var(--sp-text)' }}>Systempag</span>
           </div>
 
-          {/* Nav Central */}
-          <nav className="hidden md:flex items-center gap-6">
-            <a href="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
-              Dashboard
-            </a>
-            <a href="#" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
-              Relatórios
-            </a>
-            <a href="#" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
-              Configurações
-            </a>
+          {/* Nav */}
+          <nav style={{ display: 'flex', gap: '2rem' }}>
+            {[
+              { label: 'Dashboard', href: '/dashboard' },
+              { label: 'Relatórios', href: '#' },
+              { label: 'Configurações', href: '#' }
+            ].map(link => (
+              <a key={link.label} href={link.href} style={{
+                fontSize: 14, fontWeight: 500,
+                color: 'var(--sp-text2)',
+                textDecoration: 'none',
+                transition: 'color 0.2s'
+              }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--sp-primary)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--sp-text2)')}
+              >
+                {link.label}
+              </a>
+            ))}
           </nav>
 
-          {/* Ações à direita */}
-          <div className="flex items-center gap-3">
-            {/* Toggle Tema */}
+          {/* Ações */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* Toggle tema */}
             <button
               onClick={toggleTheme}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border hover:bg-surface transition-colors"
-              aria-label={theme === 'light' ? 'Ativar tema escuro' : 'Ativar tema claro'}
+              title={theme === 'light' ? 'Tema escuro' : 'Tema claro'}
+              style={{
+                width: 36, height: 36,
+                borderRadius: 8,
+                border: '1px solid var(--sp-border)',
+                backgroundColor: 'transparent',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--sp-text)',
+                transition: 'background 0.2s'
+              }}
             >
-              {theme === 'light' ? (
-                <svg className="h-4 w-4 text-foreground" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-                </svg>
-              ) : (
-                <svg className="h-4 w-4 text-foreground" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.536l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.707.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zm-1.414 8.486a1 1 0 000 1.414l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 0zM5 8a1 1 0 100-2H4a1 1 0 100 2h1z" clipRule="evenodd" />
-                </svg>
-              )}
+              {theme === 'light' ? '🌙' : '☀️'}
             </button>
 
             {/* Divisor */}
-            <div className="h-6 w-px bg-border" />
+            <div style={{ width: 1, height: 24, backgroundColor: 'var(--sp-border)' }} />
 
             {/* Avatar + Sair */}
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center">
-                <span className="text-xs font-semibold text-white">U</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: '50%',
+                background: 'linear-gradient(135deg, var(--sp-primary), var(--sp-primary-dark))',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <span style={{ color: 'white', fontWeight: 600, fontSize: 12 }}>U</span>
               </div>
-              <a
-                href="/login"
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors hidden sm:block"
-              >
-                Sair
-              </a>
+              <a href="/login" style={{
+                fontSize: 14, fontWeight: 500,
+                color: 'var(--sp-text2)',
+                textDecoration: 'none'
+              }}>Sair</a>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Conteúdo Principal */}
-      <main className="min-h-[calc(100vh-4rem)]">
-        {children}
-      </main>
+      <main>{children}</main>
     </div>
   );
 }
