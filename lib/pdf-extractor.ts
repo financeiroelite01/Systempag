@@ -37,19 +37,27 @@ function extractHighestCurrency(text: string) {
 }
 
 function extractBank(text: string) {
-  // Prioridade 1: "Instituição do pagador:" - captura até encontrar o próximo rótulo (CNPJ, Nome, etc.)
-  let match = text.match(/institui[cç][aã]o\s+do\s+pagador\s*:\s*([A-Za-zÀ-ÿ0-9\s.]+?)(?=\s+(?:CNPJ|CPF|Nome|Agência|Cooperativa|Conta))/i);
+  // Prioridade 1: banco do COMPROVANTE (não do emissor do boleto)
+  // Procura por "Aplicativo Sicredi", "Bradesco", etc. no texto
+  for (const bank of bankList) {
+    // Testa se o banco aparece em contexto de comprovante/aplicativo
+    const appMatch = text.match(new RegExp('(?:aplicativo|comprovante|transação)\\s+' + bank, 'i'));
+    if (appMatch) return bank;
+  }
+
+  // Prioridade 2: "Instituição do pagador:" (origem do dinheiro)
+  let match = text.match(/institui[cç][aã]o\s+do\s+pagador\s*:\s*([A-Za-zÀ-ÿ0-9\s.]+?)(?=\s+(?:CNPJ|CPF|Nome|Agência|Cooperativa|Conta|Institui))/i);
   if (match) {
     return match[1].trim().replace(/\s+/g, ' ');
   }
 
-  // Prioridade 2: "Banco Origem:" ou "Instituição Origem:"
-  match = text.match(/(?:banco|institui[cç][aã]o)\s+(?:de\s+)?origem\s*:\s*([A-Za-zÀ-ÿ0-9\s.]+?)(?=\s+(?:CNPJ|CPF|Nome|Agência|Cooperativa|Conta))/i);
+  // Prioridade 3: "Banco Origem:" ou "Instituição Origem:"
+  match = text.match(/(?:banco|institui[cç][aã]o)\s+(?:de\s+)?origem\s*:\s*([A-Za-zÀ-ÿ0-9\s.]+?)(?=\s+(?:CNPJ|CPF|Nome|Agência|Cooperativa|Conta|Institui))/i);
   if (match) {
     return match[1].trim().replace(/\s+/g, ' ');
   }
 
-  // Prioridade 3: qualquer banco da lista (fallback para PDFs sem "Instituição do pagador")
+  // Prioridade 4: qualquer banco da lista (fallback)
   for (const bank of bankList) {
     const bankMatch = text.match(new RegExp(bank + '[A-Za-zÀ-ÿ0-9\\s]*', 'i'));
     if (bankMatch) {
@@ -61,7 +69,7 @@ function extractBank(text: string) {
     }
   }
 
-  // Prioridade 4: Formato normal: "Banco: Nome do Banco"
+  // Prioridade 5: Formato normal: "Banco: Nome do Banco"
   const labeled = text.match(/banco(?: do pagamento)?[:\s-]+([A-Za-zÀ-ÿ0-9 ]{3,40})/i);
   return labeled?.[1]?.trim() ?? null;
 }
