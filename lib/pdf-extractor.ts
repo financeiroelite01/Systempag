@@ -37,20 +37,31 @@ function extractHighestCurrency(text: string) {
 }
 
 function extractBank(text: string) {
-  // Tenta casar o banco e capturar o restante do nome (ex: "ITAU UNIBANCO S A"),
-  // removendo o rótulo do campo seguinte que pode vir colado (formato invertido)
+  // Prioridade 1: "Instituição do pagador:" - captura até encontrar o próximo rótulo (CNPJ, Nome, etc.)
+  let match = text.match(/institui[cç][aã]o\s+do\s+pagador\s*:\s*([A-Za-zÀ-ÿ0-9\s.]+?)(?=\s+(?:CNPJ|CPF|Nome|Agência|Cooperativa|Conta))/i);
+  if (match) {
+    return match[1].trim().replace(/\s+/g, ' ');
+  }
+
+  // Prioridade 2: "Banco Origem:" ou "Instituição Origem:"
+  match = text.match(/(?:banco|institui[cç][aã]o)\s+(?:de\s+)?origem\s*:\s*([A-Za-zÀ-ÿ0-9\s.]+?)(?=\s+(?:CNPJ|CPF|Nome|Agência|Cooperativa|Conta))/i);
+  if (match) {
+    return match[1].trim().replace(/\s+/g, ' ');
+  }
+
+  // Prioridade 3: qualquer banco da lista (fallback para PDFs sem "Instituição do pagador")
   for (const bank of bankList) {
-    const match = text.match(new RegExp(bank + '[A-Za-zÀ-ÿ0-9\\s]*', 'i'));
-    if (match) {
-      const cleaned = match[0]
+    const bankMatch = text.match(new RegExp(bank + '[A-Za-zÀ-ÿ0-9\\s]*', 'i'));
+    if (bankMatch) {
+      const cleaned = bankMatch[0]
         .replace(/Institui[cç][aã]o.*$/i, '')
         .replace(/\s+/g, ' ')
         .trim();
-      return cleaned || match[0].trim();
+      return cleaned || bankMatch[0].trim();
     }
   }
 
-  // Formato normal: "Banco: Nome do Banco"
+  // Prioridade 4: Formato normal: "Banco: Nome do Banco"
   const labeled = text.match(/banco(?: do pagamento)?[:\s-]+([A-Za-zÀ-ÿ0-9 ]{3,40})/i);
   return labeled?.[1]?.trim() ?? null;
 }
