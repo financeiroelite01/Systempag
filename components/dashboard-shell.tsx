@@ -92,6 +92,29 @@ export function DashboardShell({
   const [batchResults, setBatchResults] = useState<BatchFileResult[] | null>(null);
   const [batchSummary, setBatchSummary] = useState<BatchSummary | null>(null);
 
+  // ─── Conciliação bancária ────────────────────────────────────────────────────
+  type ReconciliationItem = {
+    status: 'matched' | 'partial' | 'statement_only' | 'payment_only';
+    statementRow: { date: string; amount: number; description: string } | null;
+    payment: {
+      id: string; reference: string; amount: number | null;
+      payment_date: string | null; bank_name: string | null; invoice_number: string | null;
+    } | null;
+    matchScore: number;
+    matchDetails: string[];
+    divergences: string[];
+  };
+  type ReconciliationSummary = {
+    total: number; matched: number; partial: number; statementOnly: number; paymentOnly: number;
+  };
+  const [reconcileCompany, setReconcileCompany] = useState<string>('');
+  const [reconcileFile, setReconcileFile] = useState<File | null>(null);
+  const [reconcileStartDate, setReconcileStartDate] = useState<string>('');
+  const [reconcileEndDate, setReconcileEndDate] = useState<string>('');
+  const [reconcileResults, setReconcileResults] = useState<ReconciliationItem[] | null>(null);
+  const [reconcileSummary, setReconcileSummary] = useState<ReconciliationSummary | null>(null);
+  const [reconcileFilter, setReconcileFilter] = useState<'all' | 'matched' | 'partial' | 'statement_only' | 'payment_only'>('all');
+
   const filteredPayments = useMemo(() => {
     return payments.filter((p) => {
       if (selectedCompany !== 'all' && p.company_id !== selectedCompany) return false;
@@ -347,6 +370,53 @@ export function DashboardShell({
     if (fileInput) fileInput.value = '';
 
     if (data.summary.success > 0) await refreshPayments();
+  }
+
+  // ─── Conciliação bancária ────────────────────────────────────────────────────
+  async function handleReconcile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!reconcileFile || !reconcileCompany) return;
+    setLoadingAction('reconcile');
+    setReconcileResults(null);
+    setReconcileSummary(null);
+
+    const form = new FormData();
+    form.append('file', reconcileFile);
+    form.append('companyId', reconcileCompany);
+    if (reconcileStartDate) form.append('startDate', reconcileStartDate);
+    if (reconcileEndDate) form.append('endDate', reconcileEndDate);
+
+    const response = await fetch('/api/reconciliation', { method: 'POST', body: form });
+    const data = await response.json();
+    setLoadingAction(null);
+
+    if (!response.ok) { showFeedback(data.message || 'Erro na conciliação.', 'error'); return; }
+    setReconcileResults(data.results);
+    setReconcileSummary(data.summary);
+    setReconcileFilter('all');
+  }
+
+  async function handleReconcileExport() {
+    if (!reconcileResults) return;
+    setLoadingAction('reconcile-export');
+    const companyName = companies.find(c => c.id === reconcileCompany)?.display_name
+      || companies.find(c => c.id === reconcileCompany)?.legal_name || 'Empresa';
+
+    const response = await fetch('/api/reconciliation/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ results: reconcileResults, companyName }),
+    });
+
+    if (!response.ok) { showFeedback('Erro ao exportar.', 'error'); setLoadingAction(null); return; }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${companyName}-conciliacao.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setLoadingAction(null);
   }
 
   // ─── Reupload após exclusão ──────────────────────────────────────────────────
@@ -648,6 +718,177 @@ export function DashboardShell({
               </div>
             </div>
           </div>
+        </section>
+
+        {/* Conciliação Bancária */}
+        <section className="card p-6">
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl bg-brand-50 p-3 text-brand-700">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Conciliação bancária</h2>
+              <p className="text-sm text-slate-500">Importe o extrato CSV do banco e compare automaticamente com os comprovantes cadastrados.</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleReconcile} className="mt-6 grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Empresa</label>
+              <select value={reconcileCompany} onChange={e => setReconcileCompany(e.target.value)} required>
+                <option value="" disabled>Selecione a empresa</option>
+                {companies.map(c => (
+                  <option key={c.id} value={c.id}>{c.display_name || c.legal_name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Extrato CSV do banco</label>
+              <input type="file" accept=".csv,.txt" required
+                onChange={e => setReconcileFile(e.target.files?.[0] ?? null)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Período — De</label>
+              <input type="date" value={reconcileStartDate} onChange={e => setReconcileStartDate(e.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Período — Até</label>
+              <input type="date" value={reconcileEndDate} onChange={e => setReconcileEndDate(e.target.value)} />
+            </div>
+            <div className="md:col-span-2">
+              <button type="submit"
+                disabled={loadingAction === 'reconcile' || !reconcileFile || !reconcileCompany}
+                className="rounded-2xl bg-brand-600 px-6 py-3 font-semibold text-white hover:bg-brand-500 disabled:opacity-70">
+                {loadingAction === 'reconcile' ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Conciliando...
+                  </span>
+                ) : 'Conciliar extrato'}
+              </button>
+            </div>
+          </form>
+
+          {/* Resultado da conciliação */}
+          {reconcileSummary && reconcileResults && (
+            <div className="mt-8 space-y-6">
+              {/* Cards de resumo */}
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {[
+                  { label: 'Conciliados', value: reconcileSummary.matched, color: 'bg-emerald-50 text-emerald-700', filter: 'matched' as const },
+                  { label: 'Parciais', value: reconcileSummary.partial, color: 'bg-amber-50 text-amber-700', filter: 'partial' as const },
+                  { label: 'Só no extrato', value: reconcileSummary.statementOnly, color: 'bg-red-50 text-red-700', filter: 'statement_only' as const },
+                  { label: 'Só no sistema', value: reconcileSummary.paymentOnly, color: 'bg-slate-50 text-slate-700', filter: 'payment_only' as const },
+                ].map(card => (
+                  <button key={card.filter}
+                    onClick={() => setReconcileFilter(reconcileFilter === card.filter ? 'all' : card.filter)}
+                    className={`rounded-2xl p-4 text-center transition-all ${card.color} ${reconcileFilter === card.filter ? 'ring-2 ring-offset-2 ring-brand-400' : 'opacity-80 hover:opacity-100'}`}>
+                    <p className="text-2xl font-bold">{card.value}</p>
+                    <p className="mt-1 text-xs font-medium">{card.label}</p>
+                  </button>
+                ))}
+              </div>
+
+              {/* Botão exportar */}
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-500">
+                  {reconcileFilter === 'all'
+                    ? `${reconcileResults.length} registros no total`
+                    : `Filtrando: ${reconcileResults.filter(r => r.status === reconcileFilter).length} registros`}
+                </p>
+                <button onClick={handleReconcileExport}
+                  disabled={loadingAction === 'reconcile-export'}
+                  className="flex items-center gap-2 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-100 disabled:opacity-70">
+                  <FileDown className="h-4 w-4" />
+                  {loadingAction === 'reconcile-export' ? 'Exportando...' : 'Exportar Excel'}
+                </button>
+              </div>
+
+              {/* Tabela de resultados */}
+              <div className="overflow-hidden rounded-2xl border border-slate-200">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-500">
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Data</th>
+                        <th className="px-4 py-3">Valor extrato</th>
+                        <th className="px-4 py-3">Valor comprovante</th>
+                        <th className="px-4 py-3">Referência</th>
+                        <th className="px-4 py-3">Descrição extrato</th>
+                        <th className="px-4 py-3">Score</th>
+                        <th className="px-4 py-3">Obs.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reconcileResults
+                        .filter(r => reconcileFilter === 'all' || r.status === reconcileFilter)
+                        .map((r, i) => {
+                          const statusConfig = {
+                            matched:        { label: '✓ Conciliado',      cls: 'bg-emerald-100 text-emerald-700' },
+                            partial:        { label: '⚠ Parcial',         cls: 'bg-amber-100 text-amber-700'   },
+                            statement_only: { label: '✕ Só no extrato',   cls: 'bg-red-100 text-red-700'       },
+                            payment_only:   { label: '✕ Só no sistema',   cls: 'bg-slate-100 text-slate-700'   },
+                          }[r.status];
+
+                          const stmtDate = r.statementRow?.date
+                            ? r.statementRow.date.split('-').reverse().join('/') : '—';
+                          const payDate = r.payment?.payment_date
+                            ? r.payment.payment_date.split('-').reverse().join('/') : '—';
+                          const date = r.statementRow ? stmtDate : payDate;
+
+                          return (
+                            <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusConfig.cls}`}>
+                                  {statusConfig.label}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">{date}</td>
+                              <td className="px-4 py-3 font-medium">
+                                {r.statementRow ? `R$ ${Math.abs(r.statementRow.amount).toFixed(2).replace('.', ',')}` : '—'}
+                              </td>
+                              <td className="px-4 py-3 font-medium">
+                                {r.payment?.amount != null ? `R$ ${Number(r.payment.amount).toFixed(2).replace('.', ',')}` : '—'}
+                              </td>
+                              <td className="max-w-[200px] truncate px-4 py-3 text-slate-700">
+                                {r.payment?.reference || '—'}
+                              </td>
+                              <td className="max-w-[200px] truncate px-4 py-3 text-slate-500">
+                                {r.statementRow?.description || '—'}
+                              </td>
+                              <td className="px-4 py-3">
+                                {r.matchScore > 0 && (
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-200">
+                                      <div className={`h-full rounded-full ${r.matchScore >= 95 ? 'bg-emerald-500' : r.matchScore >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                        style={{ width: `${r.matchScore}%` }} />
+                                    </div>
+                                    <span className="text-xs text-slate-500">{r.matchScore}%</span>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                {r.divergences.length > 0 && (
+                                  <span className="text-xs text-slate-400" title={r.divergences.join(' | ')}>
+                                    {r.divergences[0].length > 40 ? r.divergences[0].slice(0, 40) + '…' : r.divergences[0]}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Lista de pagamentos */}
