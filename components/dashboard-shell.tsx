@@ -2,9 +2,11 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Building2, Check, FileDown, FilePlus2, LogOut, Pencil, Trash2, Upload, X } from 'lucide-react';
+import { Building2, Check, FileDown, FilePlus2, LayoutDashboard, LogOut, Pencil, Trash2, Upload, X } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
+
+type DashboardTab = 'dashboard' | 'companies' | 'uploads' | 'manual' | 'reconciliation';
 
 type Company = {
   id: string;
@@ -75,6 +77,9 @@ export function DashboardShell({
 
   // Modal de reupload após exclusão: guarda fileName e companyId do pagamento excluído
   const [reuploadModal, setReuploadModal] = useState<{ fileName: string; companyId: string; companyName: string } | null>(null);
+
+  // ─── Navegação por sidebar ────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<DashboardTab>('dashboard');
 
   // Upload em lote
   type BatchFileResult = {
@@ -439,26 +444,121 @@ export function DashboardShell({
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────────
+  const navItems: { id: DashboardTab; label: string; icon: typeof LayoutDashboard; description: string }[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, description: 'Visão geral e pagamentos' },
+    { id: 'companies', label: 'Cadastrar empresa', icon: Building2, description: 'Empresas e upload individual' },
+    { id: 'uploads', label: 'Uploads', icon: Upload, description: 'PDF individual e em lote' },
+    { id: 'manual', label: 'Cadastro manual', icon: FilePlus2, description: 'Lançar pagamento sem PDF' },
+    { id: 'reconciliation', label: 'Conciliação bancária', icon: FileDown, description: 'Comparar extrato com comprovantes' },
+  ];
+
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-10">
-          <div>
-            <span className="badge">Dashboard financeiro</span>
-            <h1 className="mt-3 text-2xl font-semibold text-slate-900">Gestão de pagamentos por empresa</h1>
-            <p className="mt-1 text-sm text-slate-500">Usuário logado: {userEmail}</p>
+    <main className="flex min-h-screen bg-slate-50">
+      {/* ── Sidebar ── */}
+      <aside className="hidden w-64 flex-shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
+        <div className="flex h-20 items-center gap-3 border-b border-slate-100 px-6">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600">
+            <span className="text-sm font-bold text-white">SP</span>
           </div>
+          <span className="text-lg font-semibold text-slate-900">Systempag</span>
+        </div>
+
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-6">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${
+                  isActive
+                    ? 'bg-brand-50 text-brand-700'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-brand-600' : 'text-slate-400'}`} />
+                <div className="min-w-0">
+                  <p className={`text-sm font-medium ${isActive ? 'text-brand-700' : 'text-slate-700'}`}>{item.label}</p>
+                  <p className="truncate text-xs text-slate-400">{item.description}</p>
+                </div>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="border-t border-slate-100 p-4">
           <button
             onClick={signOut}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
           >
             <LogOut className="h-4 w-4" />
             {loadingAction === 'logout' ? 'Saindo...' : 'Sair'}
           </button>
         </div>
-      </header>
+      </aside>
 
-      <section className="mx-auto max-w-7xl space-y-8 px-6 py-8 lg:px-10">
+      {/* ── Conteúdo principal ── */}
+      <div className="flex-1 overflow-x-hidden">
+        <header className="border-b border-slate-200 bg-white/90 backdrop-blur lg:hidden">
+          <div className="flex items-center justify-between px-6 py-5">
+            <div>
+              <span className="badge">Dashboard financeiro</span>
+              <h1 className="mt-3 text-2xl font-semibold text-slate-900">Gestão de pagamentos por empresa</h1>
+              <p className="mt-1 text-sm text-slate-500">Usuário logado: {userEmail}</p>
+            </div>
+            <button
+              onClick={signOut}
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              <LogOut className="h-4 w-4" />
+              {loadingAction === 'logout' ? 'Saindo...' : 'Sair'}
+            </button>
+          </div>
+
+          {/* Nav mobile (tabs horizontais) */}
+          <div className="flex gap-2 overflow-x-auto px-6 pb-4">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+                  activeTab === item.id ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </header>
+
+        {/* Header desktop simplificado */}
+        <header className="hidden border-b border-slate-200 bg-white/90 backdrop-blur lg:block">
+          <div className="px-10 py-6">
+            <h1 className="text-2xl font-semibold text-slate-900">
+              {navItems.find((n) => n.id === activeTab)?.label}
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">{userEmail}</p>
+          </div>
+        </header>
+
+      <section className="space-y-8 px-6 py-8 lg:px-10">
+        {/* Feedback global (sempre visível, independente da aba) */}
+        {feedback && (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+              feedback.type === 'error'
+                ? 'border-red-200 bg-red-50 text-red-800'
+                : 'border-brand-200 bg-brand-50 text-brand-900'
+            }`}
+          >
+            {feedback.message}
+          </div>
+        )}
+
+        {/* ═══ ABA: DASHBOARD ═══ */}
+        {activeTab === 'dashboard' && (
+        <>
         {/* Cards de resumo */}
         <div className="grid gap-4 md:grid-cols-3">
           <div className="card p-6">
@@ -476,20 +576,13 @@ export function DashboardShell({
           </div>
         </div>
 
-        {/* Feedback global */}
-        {feedback && (
-          <div
-            className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
-              feedback.type === 'error'
-                ? 'border-red-200 bg-red-50 text-red-800'
-                : 'border-brand-200 bg-brand-50 text-brand-900'
-            }`}
-          >
-            {feedback.message}
-          </div>
+        </>
         )}
 
-        {/* Formulários: empresa + upload */}
+        {/* ═══ ABA: CADASTRAR EMPRESA ═══ */}
+        {activeTab === 'companies' && (
+        <>
+        {/* Formulário: cadastrar empresa */}
         <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
           <section className="card p-6">
             <div className="flex items-center gap-3">
@@ -514,6 +607,41 @@ export function DashboardShell({
             </form>
           </section>
 
+          {/* Lista simples de empresas cadastradas */}
+          <section className="card p-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-brand-50 p-3 text-brand-700">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold">Empresas cadastradas</h2>
+                <p className="text-sm text-slate-500">{companies.length} empresa(s) no total.</p>
+              </div>
+            </div>
+            <div className="mt-6 space-y-2">
+              {companies.length === 0 ? (
+                <p className="text-sm text-slate-400">Nenhuma empresa cadastrada ainda.</p>
+              ) : (
+                companies.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between rounded-2xl border border-slate-100 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">{c.display_name || c.legal_name}</p>
+                      {c.display_name && <p className="text-xs text-slate-400">{c.legal_name}</p>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+        </>
+        )}
+
+        {/* ═══ ABA: UPLOADS ═══ */}
+        {activeTab === 'uploads' && (
+        <>
+        {/* Upload individual */}
+        <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
           <section className="card p-6">
             <div className="flex items-center gap-3">
               <div className="rounded-2xl bg-brand-50 p-3 text-brand-700">
@@ -657,7 +785,12 @@ export function DashboardShell({
             </div>
           )}
         </section>
+        </>
+        )}
 
+        {/* ═══ ABA: CADASTRO MANUAL ═══ */}
+        {activeTab === 'manual' && (
+        <>
         {/* Cadastro manual + relatórios */}
         <section className="card p-6">
           <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -719,7 +852,12 @@ export function DashboardShell({
             </div>
           </div>
         </section>
+        </>
+        )}
 
+        {/* ═══ ABA: CONCILIAÇÃO BANCÁRIA ═══ */}
+        {activeTab === 'reconciliation' && (
+        <>
         {/* Conciliação Bancária */}
         <section className="card p-6">
           <div className="flex items-center gap-3">
@@ -890,8 +1028,11 @@ export function DashboardShell({
             </div>
           )}
         </section>
+        </>
+        )}
 
-        {/* Lista de pagamentos */}
+        {/* Lista de pagamentos — também faz parte da aba Dashboard */}
+        {activeTab === 'dashboard' && (
         <section className="card p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -1123,7 +1264,9 @@ export function DashboardShell({
             </table>
           </div>
         </section>
+        )}
       </section>
+      </div>
 
       {/* Modal: pergunta se quer relançar o pagamento excluído */}
       {reuploadModal && (
