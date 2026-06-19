@@ -29,13 +29,44 @@ type ReconciliationResult = {
 
 // ─── Lógica compartilhada: extrai data/valor/descrição de uma linha de colunas ──
 
+// Extrai um valor monetário de uma célula, suportando os formatos:
+//   "350,00"        → 350
+//   "-350,00"       → -350
+//   "R$ 350,00"     → 350
+//   "(R$350,00)"    → -350   (parênteses = negativo, comum em extratos bancários)
+//   "1.234,56"      → 1234.56
+function parseMonetaryValue(rawCol: string): number | null {
+  let s = rawCol.trim();
+  if (!s) return null;
+
+  // Parênteses indicam valor negativo: "(R$836,82)"
+  const isNegative = /^\(.*\)$/.test(s);
+  if (isNegative) {
+    s = s.slice(1, -1).trim();
+  }
+
+  // Remove o símbolo de moeda e espaços extras
+  s = s.replace(/R\$/gi, '').trim();
+
+  // Precisa estar no formato brasileiro: 123,45 ou 1.234,56 (com ou sem sinal de menos)
+  const isMonetaryFormat = /^-?\d{1,3}(\.\d{3})*,\d{2}$/.test(s);
+  if (!isMonetaryFormat) return null;
+
+  const normalized = s.replace(/\./g, '').replace(',', '.');
+  const value = parseFloat(normalized);
+  if (isNaN(value)) return null;
+
+  return isNegative ? -Math.abs(value) : value;
+}
+
 function extractRowFromColumns(cols: string[], rawLine: string): StatementRow | null {
   let date: string | null = null;
   let amount: number | null = null;
   let description = '';
 
-  for (const col of cols) {
-    if (!col) continue;
+  for (const rawCol of cols) {
+    if (!rawCol) continue;
+    const col = rawCol.trim();
 
     // Data
     const ddmmyyyy = col.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -52,20 +83,17 @@ function extractRowFromColumns(cols: string[], rawLine: string): StatementRow | 
     // (evita que "05/06/2026" seja mal interpretado como "5" pelo parseFloat)
     if (isDateColumn) continue;
 
-    // Valor (formato BR: "1.234,56" ou "-1234.56")
-    const brValue = col.replace(/\./g, '').replace(',', '.');
-    const parsed = parseFloat(brValue);
-    // Garante que o número consome a string inteira (evita capturas parciais tipo "5" de "5kg")
-    const isFullNumericMatch = /^-?\d+(\.\d+)?$/.test(brValue);
-
-    if (isFullNumericMatch && !isNaN(parsed) && Math.abs(parsed) > 0.01 && amount === null) {
-      if (Math.abs(parsed) < 10_000_000) {
-        amount = parsed;
+    // Valor monetário — suporta "R$", parênteses negativos e formato BR
+    if (amount === null) {
+      const monetary = parseMonetaryValue(col);
+      if (monetary !== null && Math.abs(monetary) > 0.01 && Math.abs(monetary) < 10_000_000) {
+        amount = monetary;
+        continue; // essa coluna é o valor, não a descrição
       }
     }
 
-    // Descrição: coluna de texto mais longa
-    if (col.length > description.length && isNaN(parsed)) {
+    // Descrição: coluna de texto mais longa (que não seja o valor já capturado)
+    if (col.length > description.length) {
       description = col;
     }
   }
