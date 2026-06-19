@@ -223,6 +223,8 @@ function reconcile(
     let bestScore = 0;
     let bestDetails: string[] = [];
     let bestDivergences: string[] = [];
+    let bestExactMatch = false; // valor exato + data exata, independente da descrição
+    let bestSimilarity = -1;    // usado para desempatar entre múltiplos matches exatos
 
     for (const payment of payments) {
       if (usedPaymentIds.has(payment.id)) continue;
@@ -230,12 +232,15 @@ function reconcile(
       const details: string[] = [];
       const divergences: string[] = [];
       let score = 0;
+      let valueExact = false;
+      let dateExact = false;
 
       // 1. Valor (peso 50)
       const payAmt = payment.amount ?? 0;
       const valueDiff = Math.abs(stmtAmount - payAmt);
       if (valueDiff < 0.01) {
         score += 50;
+        valueExact = true;
         details.push('Valor ✓');
       } else if (valueDiff / stmtAmount < 0.02) {
         score += 25;
@@ -249,19 +254,23 @@ function reconcile(
       if (payment.payment_date && stmt.date) {
         if (payment.payment_date === stmt.date) {
           score += 30;
+          dateExact = true;
           details.push('Data ✓');
         } else {
           divergences.push(`Data: extrato ${stmt.date} × comprovante ${payment.payment_date}`);
         }
       }
 
-      // 3. Descrição/Referência (peso 15)
+      // 3. Descrição/Referência (peso 15) — apenas informativo, não impede conciliação
+      //    quando valor e data já batem exatamente
       const sim = similarity(stmt.description, payment.reference);
       if (sim > 0.5) {
         score += Math.round(sim * 15);
         details.push(`Descrição ≈ (${Math.round(sim * 100)}% similar)`);
       } else if (sim > 0) {
-        divergences.push(`Descrição pouco similar: "${stmt.description}" × "${payment.reference}"`);
+        details.push(`Descrição divergente (não impede conciliação)`);
+      } else {
+        details.push(`Descrição não comparável (não impede conciliação)`);
       }
 
       // 4. NF no extrato (peso 5)
@@ -274,20 +283,50 @@ function reconcile(
         }
       }
 
-      if (score > bestScore) {
+      const isExactMatch = valueExact && dateExact;
+
+      // Prioriza match exato de valor+data sobre qualquer score de descrição.
+      // Entre múltiplos matches exatos, desempata pela maior similaridade de descrição
+      // (mesmo que abaixo do threshold de 0.5 usado para pontuação).
+      if (isExactMatch && !bestExactMatch) {
         bestScore = score;
         bestPayment = payment;
         bestDetails = details;
         bestDivergences = divergences;
+        bestExactMatch = true;
+        bestSimilarity = sim;
+      } else if (isExactMatch === bestExactMatch) {
+        const isBetter = isExactMatch
+          ? sim > bestSimilarity // entre exatos: desempata por similaridade
+          : score > bestScore;   // entre não-exatos: desempata por score total
+        if (isBetter) {
+          bestScore = score;
+          bestPayment = payment;
+          bestDetails = details;
+          bestDivergences = divergences;
+          bestSimilarity = sim;
+        }
       }
     }
 
-    // Threshold mínimo: pelo menos valor + data devem bater (score >= 80)
-    if (bestPayment && bestScore >= 80) {
+    // Valor + Data exatos = Conciliado automaticamente, independente da descrição
+    if (bestPayment && bestExactMatch) {
       usedPaymentIds.add(bestPayment.id);
       usedStatementIndexes.add(si);
       results.push({
-        status: bestScore >= 95 ? 'matched' : 'partial',
+        status: 'matched',
+        statementRow: stmt,
+        payment: bestPayment,
+        matchScore: bestScore,
+        matchDetails: bestDetails,
+        divergences: bestDivergences,
+      });
+    } else if (bestPayment && bestScore >= 50) {
+      // Só valor bate (ou só data) → parcial, precisa revisão manual
+      usedPaymentIds.add(bestPayment.id);
+      usedStatementIndexes.add(si);
+      results.push({
+        status: 'partial',
         statementRow: stmt,
         payment: bestPayment,
         matchScore: bestScore,
@@ -295,29 +334,15 @@ function reconcile(
         divergences: bestDivergences,
       });
     } else {
-      // Só valor bate (score >= 50) → parcial
-      if (bestPayment && bestScore >= 50) {
-        usedPaymentIds.add(bestPayment.id);
-        usedStatementIndexes.add(si);
-        results.push({
-          status: 'partial',
-          statementRow: stmt,
-          payment: bestPayment,
-          matchScore: bestScore,
-          matchDetails: bestDetails,
-          divergences: bestDivergences,
-        });
-      } else {
-        // Sem correspondência
-        results.push({
-          status: 'statement_only',
-          statementRow: stmt,
-          payment: null,
-          matchScore: 0,
-          matchDetails: [],
-          divergences: ['Nenhum comprovante encontrado para este lançamento'],
-        });
-      }
+      // Sem correspondência
+      results.push({
+        status: 'statement_only',
+        statementRow: stmt,
+        payment: null,
+        matchScore: 0,
+        matchDetails: [],
+        divergences: ['Nenhum comprovante encontrado para este lançamento'],
+      });
     }
   }
 
