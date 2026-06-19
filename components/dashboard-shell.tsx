@@ -883,9 +883,10 @@ export function DashboardShell({
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Extrato CSV do banco</label>
-              <input type="file" accept=".csv,.txt" required
+              <label className="mb-1 block text-sm font-medium text-slate-700">Extrato do banco (CSV ou Excel)</label>
+              <input type="file" accept=".csv,.txt,.xls,.xlsx" required
                 onChange={e => setReconcileFile(e.target.files?.[0] ?? null)} />
+              <p className="mt-1 text-xs text-slate-400">Formatos aceitos: .csv, .txt, .xls, .xlsx</p>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Período — De</label>
