@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import * as XLSX from 'xlsx';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,55 @@ type ReconciliationResult = {
   divergences: string[];   // ex: ['valor difere: R$350 ≠ R$360']
 };
 
+// ─── Lógica compartilhada: extrai data/valor/descrição de uma linha de colunas ──
+
+function extractRowFromColumns(cols: string[], rawLine: string): StatementRow | null {
+  let date: string | null = null;
+  let amount: number | null = null;
+  let description = '';
+
+  for (const col of cols) {
+    if (!col) continue;
+
+    // Data
+    const ddmmyyyy = col.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    const yyyymmdd = col.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const isDateColumn = Boolean(ddmmyyyy || yyyymmdd);
+
+    if (ddmmyyyy && !date) {
+      date = `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
+    } else if (yyyymmdd && !date) {
+      date = col;
+    }
+
+    // Pula a tentativa de valor monetário se a coluna já foi reconhecida como data
+    // (evita que "05/06/2026" seja mal interpretado como "5" pelo parseFloat)
+    if (isDateColumn) continue;
+
+    // Valor (formato BR: "1.234,56" ou "-1234.56")
+    const brValue = col.replace(/\./g, '').replace(',', '.');
+    const parsed = parseFloat(brValue);
+    // Garante que o número consome a string inteira (evita capturas parciais tipo "5" de "5kg")
+    const isFullNumericMatch = /^-?\d+(\.\d+)?$/.test(brValue);
+
+    if (isFullNumericMatch && !isNaN(parsed) && Math.abs(parsed) > 0.01 && amount === null) {
+      if (Math.abs(parsed) < 10_000_000) {
+        amount = parsed;
+      }
+    }
+
+    // Descrição: coluna de texto mais longa
+    if (col.length > description.length && isNaN(parsed)) {
+      description = col;
+    }
+  }
+
+  if (date && amount !== null) {
+    return { date, amount, description, raw: rawLine };
+  }
+  return null;
+}
+
 // ─── Parser de CSV ────────────────────────────────────────────────────────────
 
 function parseCSV(text: string): StatementRow[] {
@@ -41,46 +91,60 @@ function parseCSV(text: string): StatementRow[] {
     const sep = line.includes(';') ? ';' : ',';
     const cols = line.split(sep).map(c => c.replace(/^"|"$/g, '').trim());
 
-    // Procura coluna de data (dd/mm/yyyy ou yyyy-mm-dd)
-    let date: string | null = null;
-    let amount: number | null = null;
-    let description = '';
-
-    for (let i = 0; i < cols.length; i++) {
-      const col = cols[i];
-
-      // Data
-      const ddmmyyyy = col.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-      const yyyymmdd = col.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (ddmmyyyy && !date) {
-        date = `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
-      } else if (yyyymmdd && !date) {
-        date = col;
-      }
-
-      // Valor (formato BR: "1.234,56" ou "-1234.56")
-      const brValue = col.replace(/\./g, '').replace(',', '.');
-      const parsed = parseFloat(brValue);
-      if (!isNaN(parsed) && Math.abs(parsed) > 0.01 && amount === null) {
-        // Só aceita se parecer um valor monetário razoável (> 0.01 e não um ano)
-        if (Math.abs(parsed) < 10_000_000 && !col.match(/^\d{4}$/)) {
-          amount = parsed;
-        }
-      }
-
-      // Descrição: coluna de texto mais longa
-      if (col.length > description.length && isNaN(parsed)) {
-        description = col;
-      }
-    }
-
-    // Só inclui linhas com data e valor válidos
-    if (date && amount !== null) {
-      rows.push({ date, amount, description, raw: line });
-    }
+    const row = extractRowFromColumns(cols, line);
+    if (row) rows.push(row);
   }
 
   return rows;
+}
+
+// ─── Parser de Excel (.xls / .xlsx) ──────────────────────────────────────────
+
+function parseExcel(buffer: Buffer): StatementRow[] {
+  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+
+  // Converte para array de arrays (uma linha = um array de células)
+  const data: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+  const rows: StatementRow[] = [];
+
+  for (const rawRow of data) {
+    const cols = rawRow.map((cell) => {
+      // Datas do Excel já vêm como objeto Date (cellDates: true)
+      if (cell instanceof Date) {
+        const d = String(cell.getDate()).padStart(2, '0');
+        const m = String(cell.getMonth() + 1).padStart(2, '0');
+        const y = cell.getFullYear();
+        return `${d}/${m}/${y}`;
+      }
+      // Números (valores monetários) — converte para string no padrão BR
+      if (typeof cell === 'number') {
+        return cell.toFixed(2).replace('.', ',');
+      }
+      return String(cell ?? '').trim();
+    });
+
+    const rawLine = cols.join(' | ');
+    const row = extractRowFromColumns(cols, rawLine);
+    if (row) rows.push(row);
+  }
+
+  return rows;
+}
+
+// ─── Detecta o tipo de arquivo e escolhe o parser correto ────────────────────
+
+function parseStatementFile(buffer: Buffer, fileName: string): StatementRow[] {
+  const ext = fileName.toLowerCase().split('.').pop();
+
+  if (ext === 'xls' || ext === 'xlsx') {
+    return parseExcel(buffer);
+  }
+
+  // CSV / TXT — lê como texto
+  return parseCSV(buffer.toString('utf-8'));
 }
 
 // ─── Normaliza texto para comparação ─────────────────────────────────────────
@@ -259,15 +323,38 @@ export async function POST(request: Request) {
   const startDate = String(formData.get('startDate') || '');
   const endDate = String(formData.get('endDate') || '');
 
-  if (!file) return NextResponse.json({ message: 'Arquivo CSV obrigatório.' }, { status: 400 });
+  if (!file) return NextResponse.json({ message: 'Arquivo do extrato é obrigatório.' }, { status: 400 });
   if (!companyId) return NextResponse.json({ message: 'Empresa obrigatória.' }, { status: 400 });
 
-  // Lê o CSV
-  const csvText = await file.text();
-  const statementRows = parseCSV(csvText);
+  // Valida extensão aceita
+  const allowedExt = ['csv', 'txt', 'xls', 'xlsx'];
+  const ext = file.name.toLowerCase().split('.').pop() ?? '';
+  if (!allowedExt.includes(ext)) {
+    return NextResponse.json(
+      { message: 'Formato não suportado. Envie um arquivo .csv, .txt, .xls ou .xlsx.' },
+      { status: 400 }
+    );
+  }
+
+  // Lê o arquivo (CSV/TXT como texto, XLS/XLSX como binário) e detecta o parser correto
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  let statementRows: StatementRow[];
+
+  try {
+    statementRows = parseStatementFile(buffer, file.name);
+  } catch (parseError) {
+    return NextResponse.json(
+      { message: `Erro ao ler o arquivo: ${parseError instanceof Error ? parseError.message : 'formato inválido'}` },
+      { status: 400 }
+    );
+  }
 
   if (statementRows.length === 0) {
-    return NextResponse.json({ message: 'Nenhum lançamento encontrado no CSV. Verifique o formato.' }, { status: 400 });
+    return NextResponse.json(
+      { message: 'Nenhum lançamento encontrado no arquivo. Verifique se há colunas de data e valor.' },
+      { status: 400 }
+    );
   }
 
   // Busca comprovantes do período e empresa
