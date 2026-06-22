@@ -81,6 +81,10 @@ export function DashboardShell({
   // ─── Navegação por sidebar ────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<DashboardTab>('dashboard');
 
+  // ─── Exclusão em lote ────────────────────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+
   // Upload em lote
   type BatchFileResult = {
     fileName: string;
@@ -441,6 +445,50 @@ export function DashboardShell({
     setReuploadModal(null);
 
     if (response.ok) await refreshPayments();
+  }
+
+  // ─── Exclusão em lote ────────────────────────────────────────────────────────
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === filteredPayments.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredPayments.map(p => p.id)));
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    setLoadingAction('bulk-delete');
+    setBulkDeleteConfirm(false);
+
+    const ids = Array.from(selectedIds);
+    const results = await Promise.all(
+      ids.map(id =>
+        fetch(`/api/payments/${id}`, { method: 'DELETE' })
+          .then(r => ({ id, ok: r.ok }))
+          .catch(() => ({ id, ok: false }))
+      )
+    );
+
+    const failed = results.filter(r => !r.ok).length;
+    const succeeded = results.filter(r => r.ok).length;
+    setSelectedIds(new Set());
+    setLoadingAction(null);
+
+    if (failed > 0) {
+      showFeedback(`${succeeded} excluído(s), ${failed} com erro.`, 'error');
+    } else {
+      showFeedback(`${succeeded} pagamento(s) excluído(s) com sucesso.`, 'success');
+    }
+    await refreshPayments();
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────────
@@ -1046,20 +1094,20 @@ export function DashboardShell({
                 <input
                   type="date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => { setStartDate(e.target.value); setSelectedIds(new Set()); }}
                   className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
                 />
                 <label className="text-sm text-slate-500 whitespace-nowrap">até</label>
                 <input
                   type="date"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(e) => { setEndDate(e.target.value); setSelectedIds(new Set()); }}
                   className="rounded-xl border border-slate-300 px-3 py-2 text-sm"
                 />
                 {(startDate || endDate) && (
                   <button
                     type="button"
-                    onClick={() => { setStartDate(''); setEndDate(''); }}
+                    onClick={() => { setStartDate(''); setEndDate(''); setSelectedIds(new Set()); }}
                     className="text-sm font-medium text-brand-700 hover:underline whitespace-nowrap"
                   >
                     Limpar
@@ -1068,7 +1116,7 @@ export function DashboardShell({
               </div>
               <select
                 value={selectedCompany}
-                onChange={(e) => setSelectedCompany(e.target.value)}
+                onChange={(e) => { setSelectedCompany(e.target.value); setSelectedIds(new Set()); }}
                 className="w-full md:w-72"
               >
                 <option value="all">Todas as empresas</option>
@@ -1080,9 +1128,46 @@ export function DashboardShell({
           </div>
 
           <div className="mt-6 overflow-x-auto">
+            {/* Barra de ação em lote */}
+            {selectedIds.size > 0 && (
+              <div className="mb-3 flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+                <span className="text-sm font-medium text-red-800">
+                  {selectedIds.size} pagamento(s) selecionado(s)
+                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setSelectedIds(new Set())}
+                    className="text-sm text-slate-500 hover:text-slate-700"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => setBulkDeleteConfirm(true)}
+                    disabled={loadingAction === 'bulk-delete'}
+                    className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-70"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {loadingAction === 'bulk-delete' ? 'Excluindo...' : `Excluir ${selectedIds.size} selecionado(s)`}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <table className="min-w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500">
+                  <th className="px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={filteredPayments.length > 0 && selectedIds.size === filteredPayments.length}
+                      ref={el => {
+                        if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < filteredPayments.length;
+                      }}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 cursor-pointer rounded border-slate-300 accent-brand-600"
+                      title="Selecionar todos"
+                    />
+                  </th>
                   <th className="px-3 py-3 font-medium">Empresa</th>
                   <th className="px-3 py-3 font-medium">Data de Pgt</th>
                   <th className="px-3 py-3 font-medium">Referência</th>
@@ -1105,9 +1190,20 @@ export function DashboardShell({
                       <tr
                         key={payment.id}
                         className={`border-b border-slate-100 last:border-0 transition-colors ${
+                          selectedIds.has(payment.id) ? 'bg-red-50/40' :
                           isEditing ? 'bg-brand-50/60' : isDeleting ? 'bg-red-50/60' : 'hover:bg-slate-50'
                         }`}
                       >
+                        {/* Checkbox de seleção */}
+                        <td className="px-3 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(payment.id)}
+                            onChange={() => toggleSelect(payment.id)}
+                            className="h-4 w-4 cursor-pointer rounded border-slate-300 accent-brand-600"
+                          />
+                        </td>
+
                         {/* Empresa (nunca editável) */}
                         <td className="px-3 py-3 font-medium text-slate-700">{payment.company_name}</td>
 
@@ -1268,6 +1364,35 @@ export function DashboardShell({
         )}
       </section>
       </div>
+
+      {/* Modal: confirmação de exclusão em lote */}
+      {bulkDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-soft">
+            <h3 className="text-lg font-semibold text-slate-900">Excluir pagamentos</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Tem certeza que deseja excluir{' '}
+              <span className="font-medium text-red-700">{selectedIds.size} pagamento(s)</span>?
+              Esta ação não pode ser desfeita.
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={handleBulkDelete}
+                disabled={loadingAction === 'bulk-delete'}
+                className="flex-1 rounded-2xl bg-red-600 px-4 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-70"
+              >
+                {loadingAction === 'bulk-delete' ? 'Excluindo...' : 'Confirmar exclusão'}
+              </button>
+              <button
+                onClick={() => setBulkDeleteConfirm(false)}
+                className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: pergunta se quer relançar o pagamento excluído */}
       {reuploadModal && (
