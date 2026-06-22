@@ -1255,7 +1255,7 @@ export function DashboardShell({
                         </td>
 
                         {/* Empresa (nunca editável) */}
-                        <td className="px-3 py-3 font-medium text-slate-700">{payment.company_name}</td>
+                        <td className="px-3 py-3 font-medium text-slate-700 whitespace-nowrap">{payment.company_name}</td>
 
                         {/* Data */}
                         <td className="px-3 py-3">
