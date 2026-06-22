@@ -115,31 +115,38 @@ function extractValue(text: string) {
 /**
  * Extrai NF e referência do nome do arquivo.
  *
- * Padrão esperado:
- *   VALOR - Comp pgt [NF XXX -] DESCRIÇÃO.pdf
+ * Padrões suportados:
  *
- * Exemplos:
- *   "442,00 - Comp pgt NF 282 - Manutencao-conserto de motor"
- *     → invoice: "282", reference: "Manutencao-conserto de motor"
+ *   COM NF:
+ *   "350,00 - Comp pgt NF 19531 - Coleta de residuos - NORTE AMBIENTAL.pdf"
+ *     → invoice: "19531", reference: "Coleta de residuos - NORTE AMBIENTAL"
  *
- *   "1144,95 - Comp pgt HOLERITE KELERSON"
+ *   SEM NF (novo padrão, com traço após "Comp pgt"):
+ *   "82,47 - Comp pgt - Seguro de Vida USINA.pdf"
+ *     → invoice: null, reference: "Seguro de Vida USINA"
+ *
+ *   SEM NF (padrão antigo, sem traço):
+ *   "1144,95 - Comp pgt HOLERITE KELERSON.pdf"
  *     → invoice: null, reference: "HOLERITE KELERSON"
- *
- *   "1000,00 - Comp pgt NF 22 - fabricacao passarela e grades"
- *     → invoice: "22", reference: "fabricacao passarela e grades"
  */
 function parseFilename(fileName: string): { invoice_number: string | null; reference: string } {
-  // Remove extensão
+  // 1. Remove extensão
   let name = fileName.replace(/\.pdf$/i, '').trim();
 
-  // 1. Remove o valor no início: ex "442,00 - " | "1144,95 - " | "1.200,00 - "
-  //    \d[\d.]* cobre qualquer quantidade de dígitos, com ou sem separador de milhar
+  // 2. Remove o valor no início: "350,00 - " | "1.200,00 - "
   name = name.replace(/^\d[\d.]*,\d{2}\s*-\s*/, '');
 
-  // 2. Remove prefixo fixo "Comp pgt" (case-insensitive)
+  // 3. Remove prefixo "Comp pgt" (case-insensitive)
   name = name.replace(/^comp\s+pgt\s*/i, '');
 
-  // 3. Extrai NF se existir: "NF 282 - " ou "NF22 - "
+  // 4. Remove traço separador opcional que fica após "Comp pgt" quando não há NF:
+  //    "- Seguro de Vida" → "Seguro de Vida"
+  //    Só remove se NÃO vier "NF" logo a seguir (para não afetar o padrão com NF)
+  if (!name.match(/^NF\s*\d+/i)) {
+    name = name.replace(/^-\s*/, '');
+  }
+
+  // 5. Extrai NF se existir: "NF 282 - " ou "NF282 - "
   let invoice_number: string | null = null;
   const nfMatch = name.match(/^NF\s*(\d+)\s*-\s*/i);
   if (nfMatch) {
@@ -147,7 +154,7 @@ function parseFilename(fileName: string): { invoice_number: string | null; refer
     name = name.slice(nfMatch[0].length);
   }
 
-  // 4. O que sobrou é a descrição — limpa espaços extras
+  // 6. O que sobrou é a descrição
   const reference = name.trim() || 'Pagamento sem referência';
 
   return { invoice_number, reference };
