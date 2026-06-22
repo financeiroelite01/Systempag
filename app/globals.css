@@ -20,22 +20,6 @@
     --color-error: 239 68 68;
   }
 
-  [data-theme='dark'] {
-    --color-primary: 59 130 246;
-    --color-primary-dark: 0 102 204;
-    --color-primary-light: 147 197 253;
-    --color-background: 17 24 39;
-    --color-surface: 31 41 55;
-    --color-card: 31 41 55;
-    --color-foreground: 243 244 246;
-    --color-muted-foreground: 156 163 175;
-    --color-border: 55 65 81;
-    --color-input: 75 85 99;
-    --color-success: 34 197 94;
-    --color-warning: 245 158 11;
-    --color-error: 239 68 68;
-  }
-
   * {
     border-color: rgb(var(--color-border));
   }
