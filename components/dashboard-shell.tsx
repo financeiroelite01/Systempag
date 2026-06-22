@@ -1124,6 +1124,56 @@ export function DashboardShell({
                   <option key={c.id} value={c.id}>{c.display_name || c.legal_name}</option>
                 ))}
               </select>
+
+              {/* Botão exportar relatório Excel */}
+              {selectedCompany !== 'all' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    if (startDate) params.set('start', startDate);
+                    if (endDate) params.set('end', endDate);
+                    const query = params.toString();
+                    window.open(`/api/reports/${selectedCompany}${query ? `?${query}` : ''}`, '_blank');
+                  }}
+                  className="flex items-center gap-2 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-100 whitespace-nowrap"
+                  title="Exportar relatório da empresa selecionada"
+                >
+                  <FileDown className="h-4 w-4" />
+                  Exportar Excel
+                </button>
+              ) : (
+                <div className="relative group">
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-500 whitespace-nowrap"
+                  >
+                    <FileDown className="h-4 w-4" />
+                    Exportar Excel
+                  </button>
+                  {/* Dropdown com lista de empresas quando "Todas as empresas" está selecionado */}
+                  <div className="absolute right-0 top-full z-20 mt-1 hidden w-56 rounded-2xl border border-slate-200 bg-white py-2 shadow-lg group-hover:block">
+                    <p className="px-4 py-1 text-xs font-medium text-slate-400">Selecione a empresa:</p>
+                    {companies.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          const params = new URLSearchParams();
+                          if (startDate) params.set('start', startDate);
+                          if (endDate) params.set('end', endDate);
+                          const query = params.toString();
+                          window.open(`/api/reports/${c.id}${query ? `?${query}` : ''}`, '_blank');
+                        }}
+                        className="flex w-full items-center justify-between px-4 py-2 text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-700"
+                      >
+                        <span>{c.display_name || c.legal_name}</span>
+                        <FileDown className="h-3.5 w-3.5" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
