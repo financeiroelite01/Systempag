@@ -43,10 +43,10 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_CLASS: Record<string, string> = {
-  processed: 'bg-emerald-50 text-emerald-700',
-  pending: 'bg-slate-100 text-slate-600',
-  review: 'bg-amber-50 text-amber-700',
-  error: 'bg-red-50 text-red-700'
+  processed: 'badge bg-emerald-50 text-emerald-600',
+  pending:   'badge bg-slate-100 text-slate-500',
+  review:    'badge bg-amber-50 text-amber-600',
+  error:     'badge bg-red-50 text-red-600'
 };
 
 export function DashboardShell({
@@ -501,17 +501,17 @@ export function DashboardShell({
   ];
 
   return (
-    <main className="flex min-h-screen bg-slate-50">
+    <main className="flex min-h-screen">
       {/* ── Sidebar ── */}
-      <aside className="hidden w-64 flex-shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
-        <div className="flex h-20 items-center gap-3 border-b border-slate-100 px-6">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600">
-            <span className="text-sm font-bold text-white">SP</span>
+      <aside className="hidden w-60 flex-shrink-0 flex-col lg:flex" style={{background:"var(--sidebar-bg)"}}>
+        <div className="flex h-16 items-center gap-3 px-5 border-b" style={{borderColor:"rgba(255,255,255,0.08)"}}>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{background:"var(--accent)"}}>
+            <span className="text-xs font-bold text-white tracking-wider">SP</span>
           </div>
-          <span className="text-lg font-semibold text-slate-900">Systempag</span>
+          <span className="text-sm font-semibold tracking-tight" style={{color:"#FFFFFF"}}>Systempag</span>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-6">
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -519,26 +519,28 @@ export function DashboardShell({
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${
-                  isActive
-                    ? 'bg-brand-50 text-brand-700'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
+                className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-all rounded-lg relative"
+                style={{
+                  background: isActive ? 'rgba(37,99,235,0.15)' : 'transparent',
+                  color: isActive ? '#FFFFFF' : 'var(--sidebar-text)',
+                }}
+                onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; }}
+                onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
               >
-                <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-brand-600' : 'text-slate-400'}`} />
+                <Icon className="h-4 w-4 flex-shrink-0 flex-none" style={{color: isActive ? "#60A5FA" : "var(--sidebar-text)"}} />
                 <div className="min-w-0">
-                  <p className={`text-sm font-medium ${isActive ? 'text-brand-700' : 'text-slate-700'}`}>{item.label}</p>
-                  <p className="truncate text-xs text-slate-400">{item.description}</p>
+                  <p className="text-sm font-medium leading-none">{item.label}</p>
+                  <p className="text-xs mt-0.5 truncate" style={{color:"var(--sidebar-text)", opacity:0.7}}>{item.description}</p>
                 </div>
               </button>
             );
           })}
         </nav>
 
-        <div className="border-t border-slate-100 p-4">
+        <div className="p-3 border-t" style={{borderColor:"rgba(255,255,255,0.08)"}}>
           <button
             onClick={signOut}
-            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all" style={{color:"var(--sidebar-text)"}} onMouseEnter={e=>(e.currentTarget as HTMLButtonElement).style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>(e.currentTarget as HTMLButtonElement).style.background="transparent"}
           >
             <LogOut className="h-4 w-4" />
             {loadingAction === 'logout' ? 'Saindo...' : 'Sair'}
@@ -547,9 +549,9 @@ export function DashboardShell({
       </aside>
 
       {/* ── Conteúdo principal ── */}
-      <div className="flex-1 overflow-x-hidden">
-        <header className="border-b border-slate-200 bg-white/90 backdrop-blur lg:hidden">
-          <div className="flex items-center justify-between px-6 py-5">
+      <div className="flex-1 overflow-x-hidden flex flex-col min-h-screen">
+        <header className="border-b bg-white lg:hidden" style={{borderColor:"var(--card-border)"}}>
+          <div className="flex items-center justify-between px-5 py-4">
             <div>
               <span className="badge">Dashboard financeiro</span>
               <h1 className="mt-3 text-2xl font-semibold text-slate-900">Gestão de pagamentos por empresa</h1>
@@ -557,7 +559,7 @@ export function DashboardShell({
             </div>
             <button
               onClick={signOut}
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+              className="btn btn-secondary"
             >
               <LogOut className="h-4 w-4" />
               {loadingAction === 'logout' ? 'Saindo...' : 'Sair'}
@@ -565,7 +567,7 @@ export function DashboardShell({
           </div>
 
           {/* Nav mobile (tabs horizontais) */}
-          <div className="flex gap-2 overflow-x-auto px-6 pb-4">
+          <div className="flex gap-1.5 overflow-x-auto px-5 pb-3">
             {navItems.map((item) => (
               <button
                 key={item.id}
@@ -581,23 +583,23 @@ export function DashboardShell({
         </header>
 
         {/* Header desktop simplificado */}
-        <header className="hidden border-b border-slate-200 bg-white/90 backdrop-blur lg:block">
-          <div className="px-10 py-6">
-            <h1 className="text-2xl font-semibold text-slate-900">
+        <header className="hidden border-b bg-white lg:block" style={{borderColor:"var(--card-border)"}}>
+          <div className="px-8 py-5 flex items-center justify-between">
+            <h1 className="text-lg font-semibold" style={{color:"var(--text-primary)"}}>
               {navItems.find((n) => n.id === activeTab)?.label}
             </h1>
-            <p className="mt-1 text-sm text-slate-500">{userEmail}</p>
+            <p className="text-xs mt-0.5" style={{color:"var(--text-muted)"}}>{userEmail}</p>
           </div>
         </header>
 
-      <section className="space-y-8 px-6 py-8 lg:px-10">
+      <section className="space-y-6 px-6 py-6 lg:px-8 flex-1">
         {/* Feedback global (sempre visível, independente da aba) */}
         {feedback && (
           <div
-            className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+            className={`rounded-lg border px-4 py-3 text-sm font-medium animate-in ${
               feedback.type === 'error'
-                ? 'border-red-200 bg-red-50 text-red-800'
-                : 'border-brand-200 bg-brand-50 text-brand-900'
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : 'border-blue-200 bg-blue-50 text-blue-800'
             }`}
           >
             {feedback.message}
@@ -609,16 +611,16 @@ export function DashboardShell({
         <>
         {/* Cards de resumo */}
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="card p-6">
-            <p className="text-sm text-slate-500">Empresas cadastradas</p>
-            <p className="mt-3 text-4xl font-semibold">{companies.length}</p>
+          <div className="card p-5">
+            <p className="text-xs font-medium uppercase tracking-widest" style={{color:"var(--text-muted)"}}>Empresas</p>
+            <p className="mt-2 text-3xl font-semibold text-money">{companies.length}</p>
           </div>
-          <div className="card p-6">
-            <p className="text-sm text-slate-500">Pagamentos no filtro</p>
-            <p className="mt-3 text-4xl font-semibold">{filteredPayments.length}</p>
+          <div className="card p-5">
+            <p className="text-xs font-medium uppercase tracking-widest" style={{color:"var(--text-muted)"}}>Pagamentos</p>
+            <p className="mt-2 text-3xl font-semibold text-money">{filteredPayments.length}</p>
           </div>
-          <div className="card p-6">
-            <p className="text-sm text-slate-500">Valor total</p>
+          <div className="card p-5">
+            <p className="text-xs font-medium uppercase tracking-widest" style={{color:"var(--text-muted)"}}>Valor total</p>
             <p className="mt-3 text-4xl font-semibold">{formatCurrency(totalAmount)}</p>
             <p className="mt-2 text-sm text-emerald-600">Processados automaticamente: {processedCount}</p>
           </div>
@@ -632,14 +634,14 @@ export function DashboardShell({
         <>
         {/* Formulário: cadastrar empresa */}
         <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-          <section className="card p-6">
+          <section className="card p-6 animate-in">
             <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-brand-50 p-3 text-brand-700">
+              <div className="rounded-lg p-2.5 flex-shrink-0" style={{background:"var(--accent-light)",color:"var(--accent)"}}>
                 <Building2 className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold">Cadastrar empresa</h2>
-                <p className="text-sm text-slate-500">Cada pagamento ficará vinculado a uma empresa.</p>
+                <h2 className="text-base font-semibold" style={{color:"var(--text-primary)"}}>Cadastrar empresa</h2>
+                <p className="text-xs mt-0.5" style={{color:"var(--text-muted)"}}>Cada pagamento ficará vinculado a uma empresa.</p>
               </div>
             </div>
             <form onSubmit={handleCreateCompany} className="mt-6 grid gap-4 md:grid-cols-2">
@@ -648,7 +650,7 @@ export function DashboardShell({
               <input name="taxId" placeholder="CNPJ" className="md:col-span-2" />
               <button
                 disabled={loadingAction === 'company'}
-                className="rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-800 disabled:opacity-70 md:col-span-2"
+                className="btn btn-primary md:col-span-2 w-full justify-center py-2.5"
               >
                 {loadingAction === 'company' ? 'Salvando...' : 'Salvar empresa'}
               </button>
@@ -656,14 +658,14 @@ export function DashboardShell({
           </section>
 
           {/* Lista simples de empresas cadastradas */}
-          <section className="card p-6">
+          <section className="card p-6 animate-in">
             <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-brand-50 p-3 text-brand-700">
+              <div className="rounded-lg p-2.5 flex-shrink-0" style={{background:"var(--accent-light)",color:"var(--accent)"}}>
                 <Building2 className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold">Empresas cadastradas</h2>
-                <p className="text-sm text-slate-500">{companies.length} empresa(s) no total.</p>
+                <h2 className="text-base font-semibold" style={{color:"var(--text-primary)"}}>Empresas cadastradas</h2>
+                <p className="text-xs mt-0.5" style={{color:"var(--text-muted)"}}>{companies.length} empresa(s) no total.</p>
               </div>
             </div>
             <div className="mt-6 space-y-2">
@@ -690,14 +692,14 @@ export function DashboardShell({
         <>
         {/* Upload individual */}
         <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-          <section className="card p-6">
+          <section className="card p-6 animate-in">
             <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-brand-50 p-3 text-brand-700">
+              <div className="rounded-lg p-2.5 flex-shrink-0" style={{background:"var(--accent-light)",color:"var(--accent)"}}>
                 <Upload className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold">Upload de comprovante PDF</h2>
-                <p className="text-sm text-slate-500">
+                <h2 className="text-base font-semibold" style={{color:"var(--text-primary)"}}>Upload de comprovante PDF</h2>
+                <p className="text-xs mt-0.5" style={{color:"var(--text-muted)"}}>
                   Arquivos duplicados são bloqueados automaticamente.
                 </p>
               </div>
@@ -712,7 +714,7 @@ export function DashboardShell({
               <input type="file" name="file" accept="application/pdf" required />
               <button
                 disabled={loadingAction === 'upload'}
-                className="rounded-2xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-500 disabled:opacity-70"
+                className="btn btn-primary w-full justify-center py-2.5"
               >
                 {loadingAction === 'upload' ? 'Processando PDF...' : 'Enviar PDF e extrair dados'}
               </button>
@@ -721,14 +723,14 @@ export function DashboardShell({
         </div>
 
         {/* Upload em lote */}
-        <section className="card p-6">
+        <section className="card p-6 animate-in">
           <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-brand-50 p-3 text-brand-700">
+            <div className="rounded-lg p-2.5 flex-shrink-0" style={{background:"var(--accent-light)",color:"var(--accent)"}}>
               <Upload className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold">Upload em lote</h2>
-              <p className="text-sm text-slate-500">Envie até 10 comprovantes PDF de uma vez. Duplicados são detectados automaticamente.</p>
+              <h2 className="text-base font-semibold" style={{color:"var(--text-primary)"}}>Upload em lote</h2>
+              <p className="text-xs mt-0.5" style={{color:"var(--text-muted)"}}>Envie até 10 comprovantes PDF de uma vez. Duplicados são detectados automaticamente.</p>
             </div>
           </div>
 
@@ -767,7 +769,7 @@ export function DashboardShell({
             <button
               type="submit"
               disabled={loadingAction === 'batch' || !batchFiles || batchFiles.length === 0 || batchFiles.length > 10}
-              className="self-end rounded-2xl bg-brand-600 px-6 py-3 font-semibold text-white hover:bg-brand-500 disabled:opacity-70 whitespace-nowrap"
+              className="btn btn-primary self-end"
             >
               {loadingAction === 'batch' ? (
                 <span className="flex items-center gap-2">
@@ -786,29 +788,29 @@ export function DashboardShell({
             <div className="mt-6 space-y-4">
               {/* Resumo */}
               <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-2xl bg-emerald-50 p-4 text-center">
-                  <p className="text-2xl font-semibold text-emerald-700">{batchSummary.success}</p>
-                  <p className="mt-1 text-xs font-medium text-emerald-600">Processados</p>
+                <div className="card p-4 text-center border-emerald-100">
+                  <p className="text-2xl font-semibold text-money" style={{color:"var(--success)"}}>{batchSummary.success}</p>
+                  <p className="mt-1 text-xs font-medium uppercase tracking-wide" style={{color:"var(--success)"}}>Processados</p>
                 </div>
-                <div className="rounded-2xl bg-amber-50 p-4 text-center">
-                  <p className="text-2xl font-semibold text-amber-700">{batchSummary.duplicates}</p>
-                  <p className="mt-1 text-xs font-medium text-amber-600">Duplicados</p>
+                <div className="card p-4 text-center border-amber-100">
+                  <p className="text-2xl font-semibold text-money" style={{color:"var(--warning)"}}>{batchSummary.duplicates}</p>
+                  <p className="mt-1 text-xs font-medium uppercase tracking-wide" style={{color:"var(--warning)"}}>Duplicados</p>
                 </div>
-                <div className="rounded-2xl bg-red-50 p-4 text-center">
-                  <p className="text-2xl font-semibold text-red-700">{batchSummary.errors}</p>
-                  <p className="mt-1 text-xs font-medium text-red-600">Erros</p>
+                <div className="card p-4 text-center border-red-100">
+                  <p className="text-2xl font-semibold text-money" style={{color:"var(--danger)"}}>{batchSummary.errors}</p>
+                  <p className="mt-1 text-xs font-medium uppercase tracking-wide" style={{color:"var(--danger)"}}>Erros</p>
                 </div>
               </div>
 
               {/* Lista detalhada */}
-              <div className="overflow-hidden rounded-2xl border border-slate-200">
+              <div className="card overflow-hidden">
                 {batchResults?.map((result, index) => (
                   <div
                     key={index}
-                    className={`flex items-start gap-3 border-b border-slate-100 px-4 py-3 last:border-0 ${
-                      result.status === 'success' ? 'bg-white' :
-                      result.status === 'duplicate' ? 'bg-amber-50/50' : 'bg-red-50/50'
-                    }`}
+                    className={`flex items-start gap-3 px-4 py-3 border-b last:border-0 ${
+                      result.status === 'success' ? '' :
+                      result.status === 'duplicate' ? 'bg-amber-50' : 'bg-red-50'
+                    }`} style={{borderColor:"var(--card-border)"}}
                   >
                     <span className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                       result.status === 'success' ? 'bg-emerald-100 text-emerald-700' :
@@ -817,10 +819,10 @@ export function DashboardShell({
                       {result.status === 'success' ? '✓' : result.status === 'duplicate' ? '=' : '✕'}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-800">{result.fileName}</p>
-                      <p className="text-xs text-slate-500">{result.message}</p>
+                      <p className="truncate text-sm font-medium" style={{color:"var(--text-primary)"}}>{result.fileName}</p>
+                      <p className="text-xs mt-0.5" style={{color:"var(--text-muted)"}}>{result.message}</p>
                       {result.status === 'success' && result.reference && (
-                        <p className="mt-0.5 text-xs text-slate-400">
+                        <p className="mt-0.5 text-xs" style={{color:"var(--text-muted)"}}>
                           {result.reference}
                           {result.amount ? ` · R$ ${Number(result.amount).toFixed(2).replace('.', ',')}` : ''}
                           {result.bank_name ? ` · ${result.bank_name}` : ''}
@@ -840,16 +842,16 @@ export function DashboardShell({
         {activeTab === 'manual' && (
         <>
         {/* Cadastro manual + relatórios */}
-        <section className="card p-6">
+        <section className="card p-6 animate-in">
           <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
             <div>
               <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-slate-100 p-3 text-slate-700">
+                <div className="rounded-lg p-2.5 flex-shrink-0" style={{background:"#F1F4F8",color:"var(--text-secondary)"}}>
                   <FilePlus2 className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold">Cadastro manual</h2>
-                  <p className="text-sm text-slate-500">Útil para ajustes quando o PDF não trouxer todos os campos.</p>
+                  <h2 className="text-base font-semibold" style={{color:"var(--text-primary)"}}>Cadastro manual</h2>
+                  <p className="text-xs mt-0.5" style={{color:"var(--text-muted)"}}>Útil para ajustes quando o PDF não trouxer todos os campos.</p>
                 </div>
               </div>
               <form onSubmit={handleManualPayment} className="mt-6 grid gap-4 md:grid-cols-2">
@@ -866,7 +868,7 @@ export function DashboardShell({
                 <input name="amount" type="number" step="0.01" placeholder="Valor" required className="md:col-span-2" />
                 <button
                   disabled={loadingAction === 'manual-payment'}
-                  className="rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-800 disabled:opacity-70 md:col-span-2"
+                  className="btn btn-primary md:col-span-2 w-full justify-center py-2.5"
                 >
                   {loadingAction === 'manual-payment' ? 'Salvando...' : 'Cadastrar pagamento manual'}
                 </button>
@@ -907,16 +909,16 @@ export function DashboardShell({
         {activeTab === 'reconciliation' && (
         <>
         {/* Conciliação Bancária */}
-        <section className="card p-6">
+        <section className="card p-6 animate-in">
           <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-brand-50 p-3 text-brand-700">
+            <div className="rounded-lg p-2.5 flex-shrink-0" style={{background:"var(--accent-light)",color:"var(--accent)"}}>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
             </div>
             <div>
-              <h2 className="text-lg font-semibold">Conciliação bancária</h2>
-              <p className="text-sm text-slate-500">Importe o extrato CSV do banco e compare automaticamente com os comprovantes cadastrados.</p>
+              <h2 className="text-base font-semibold" style={{color:"var(--text-primary)"}}>Conciliação bancária</h2>
+              <p className="text-xs mt-0.5" style={{color:"var(--text-muted)"}}>Importe o extrato CSV do banco e compare automaticamente com os comprovantes cadastrados.</p>
             </div>
           </div>
 
@@ -947,7 +949,7 @@ export function DashboardShell({
             <div className="md:col-span-2">
               <button type="submit"
                 disabled={loadingAction === 'reconcile' || !reconcileFile || !reconcileCompany}
-                className="rounded-2xl bg-brand-600 px-6 py-3 font-semibold text-white hover:bg-brand-500 disabled:opacity-70">
+                className="btn btn-primary">
                 {loadingAction === 'reconcile' ? (
                   <span className="flex items-center gap-2">
                     <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -974,42 +976,42 @@ export function DashboardShell({
                 ].map(card => (
                   <button key={card.filter}
                     onClick={() => setReconcileFilter(reconcileFilter === card.filter ? 'all' : card.filter)}
-                    className={`rounded-2xl p-4 text-center transition-all ${card.color} ${reconcileFilter === card.filter ? 'ring-2 ring-offset-2 ring-brand-400' : 'opacity-80 hover:opacity-100'}`}>
-                    <p className="text-2xl font-bold">{card.value}</p>
-                    <p className="mt-1 text-xs font-medium">{card.label}</p>
+                    className={`card p-4 text-center cursor-pointer transition-all ${reconcileFilter === card.filter ? 'ring-2 ring-blue-300' : 'hover:shadow-md'}`}>
+                    <p className="text-2xl font-bold text-money">{card.value}</p>
+                    <p className="mt-1 text-xs font-medium uppercase tracking-wide" style={{color:"var(--text-muted)"}}>{card.label}</p>
                   </button>
                 ))}
               </div>
 
               {/* Botão exportar */}
               <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-500">
+                <p className="text-xs mt-0.5" style={{color:"var(--text-muted)"}}>
                   {reconcileFilter === 'all'
                     ? `${reconcileResults.length} registros no total`
                     : `Filtrando: ${reconcileResults.filter(r => r.status === reconcileFilter).length} registros`}
                 </p>
                 <button onClick={handleReconcileExport}
                   disabled={loadingAction === 'reconcile-export'}
-                  className="flex items-center gap-2 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-100 disabled:opacity-70">
+                  className="btn btn-secondary" style={{color:"var(--accent)",borderColor:"#BFDBFE",background:"var(--accent-light)"}}>
                   <FileDown className="h-4 w-4" />
                   {loadingAction === 'reconcile-export' ? 'Exportando...' : 'Exportar Excel'}
                 </button>
               </div>
 
               {/* Tabela de resultados */}
-              <div className="overflow-hidden rounded-2xl border border-slate-200">
+              <div className="card overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold text-slate-500">
-                        <th className="px-4 py-3">Status</th>
-                        <th className="px-4 py-3">Data</th>
-                        <th className="px-4 py-3">Valor extrato</th>
-                        <th className="px-4 py-3">Valor comprovante</th>
-                        <th className="px-4 py-3">Referência</th>
-                        <th className="px-4 py-3">Descrição extrato</th>
-                        <th className="px-4 py-3">Score</th>
-                        <th className="px-4 py-3">Obs.</th>
+                      <tr className="">
+                        <th >Status</th>
+                        <th >Data</th>
+                        <th >Valor extrato</th>
+                        <th >Valor comprovante</th>
+                        <th >Referência</th>
+                        <th >Descrição extrato</th>
+                        <th >Score</th>
+                        <th >Obs.</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1017,10 +1019,10 @@ export function DashboardShell({
                         .filter(r => reconcileFilter === 'all' || r.status === reconcileFilter)
                         .map((r, i) => {
                           const statusConfig = {
-                            matched:        { label: '✓ Conciliado',      cls: 'bg-emerald-100 text-emerald-700' },
-                            partial:        { label: '⚠ Parcial',         cls: 'bg-amber-100 text-amber-700'   },
-                            statement_only: { label: '✕ Só no extrato',   cls: 'bg-red-100 text-red-700'       },
-                            payment_only:   { label: '✕ Só no sistema',   cls: 'bg-slate-100 text-slate-700'   },
+                            matched:        { label: '✓ Conciliado',      cls: 'badge bg-emerald-50 text-emerald-700' },
+                            partial:        { label: '⚠ Parcial',         cls: 'badge bg-amber-50 text-amber-700'   },
+                            statement_only: { label: '✕ Só no extrato',   cls: 'badge bg-red-50 text-red-700'       },
+                            payment_only:   { label: '✕ Só no sistema',   cls: 'badge bg-slate-100 text-slate-600'   },
                           }[r.status];
 
                           const stmtDate = r.statementRow?.date
@@ -1030,29 +1032,29 @@ export function DashboardShell({
                           const date = r.statementRow ? stmtDate : payDate;
 
                           return (
-                            <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                            <tr key={i} className="">
                               <td className="px-4 py-3">
-                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusConfig.cls}`}>
+                                <span className={statusConfig.cls}>
                                   {statusConfig.label}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-slate-600">{date}</td>
-                              <td className="px-4 py-3 font-medium">
+                              <td className="text-money" style={{color:"var(--text-secondary)"}}>{date}</td>
+                              <td className="font-medium text-money">
                                 {r.statementRow ? `R$ ${Math.abs(r.statementRow.amount).toFixed(2).replace('.', ',')}` : '—'}
                               </td>
-                              <td className="px-4 py-3 font-medium">
+                              <td className="font-medium text-money">
                                 {r.payment?.amount != null ? `R$ ${Number(r.payment.amount).toFixed(2).replace('.', ',')}` : '—'}
                               </td>
-                              <td className="max-w-[200px] truncate px-4 py-3 text-slate-700">
+                              <td className="max-w-[200px] truncate" style={{color:"var(--text-primary)"}}>
                                 {r.payment?.reference || '—'}
                               </td>
-                              <td className="max-w-[200px] truncate px-4 py-3 text-slate-500">
+                              <td className="max-w-[200px] truncate" style={{color:"var(--text-muted)"}}>
                                 {r.statementRow?.description || '—'}
                               </td>
                               <td className="px-4 py-3">
                                 {r.matchScore > 0 && (
                                   <div className="flex items-center gap-2">
-                                    <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-200">
+                                    <div className="h-1 w-14 overflow-hidden rounded-full bg-slate-100">
                                       <div className={`h-full rounded-full ${r.matchScore >= 95 ? 'bg-emerald-500' : r.matchScore >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
                                         style={{ width: `${r.matchScore}%` }} />
                                     </div>
@@ -1082,11 +1084,11 @@ export function DashboardShell({
 
         {/* Lista de pagamentos — também faz parte da aba Dashboard */}
         {activeTab === 'dashboard' && (
-        <section className="card p-6">
+        <section className="card p-6 animate-in">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Lista de pagamentos</h2>
-              <p className="text-sm text-slate-500">Clique em Editar para ajustar um registro diretamente na tabela.</p>
+              <h2 className="text-base font-semibold" style={{color:"var(--text-primary)"}}>Lista de pagamentos</h2>
+              <p className="text-xs mt-0.5" style={{color:"var(--text-muted)"}}>Clique em Editar para ajustar um registro diretamente na tabela.</p>
             </div>
             <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:items-center">
               <div className="flex items-center gap-2">
@@ -1136,7 +1138,7 @@ export function DashboardShell({
                     const query = params.toString();
                     window.open(`/api/reports/${selectedCompany}${query ? `?${query}` : ''}`, '_blank');
                   }}
-                  className="flex items-center gap-2 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-100 whitespace-nowrap"
+                  className="btn btn-secondary" style={{color:"var(--accent)",borderColor:"#BFDBFE",background:"var(--accent-light)"}}
                   title="Exportar relatório da empresa selecionada"
                 >
                   <FileDown className="h-4 w-4" />
@@ -1180,21 +1182,21 @@ export function DashboardShell({
           <div className="mt-6 overflow-x-auto">
             {/* Barra de ação em lote */}
             {selectedIds.size > 0 && (
-              <div className="mb-3 flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
-                <span className="text-sm font-medium text-red-800">
+              <div className="mb-3 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 animate-in">
+                <span className="text-sm font-medium" style={{color:"var(--danger)"}}>
                   {selectedIds.size} pagamento(s) selecionado(s)
                 </span>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setSelectedIds(new Set())}
-                    className="text-sm text-slate-500 hover:text-slate-700"
+                    className="text-sm btn btn-ghost py-1.5"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={() => setBulkDeleteConfirm(true)}
                     disabled={loadingAction === 'bulk-delete'}
-                    className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-70"
+                    className="btn btn-danger"
                   >
                     <Trash2 className="h-4 w-4" />
                     {loadingAction === 'bulk-delete' ? 'Excluindo...' : `Excluir ${selectedIds.size} selecionado(s)`}
@@ -1203,9 +1205,9 @@ export function DashboardShell({
               </div>
             )}
 
-            <table className="min-w-full text-left text-sm">
+            <table className="data-table">
               <thead>
-                <tr className="border-b border-slate-200 text-slate-500">
+                <tr className="">
                   <th className="px-3 py-3">
                     <input
                       type="checkbox"
@@ -1218,14 +1220,14 @@ export function DashboardShell({
                       title="Selecionar todos"
                     />
                   </th>
-                  <th className="px-3 py-3 font-medium">Empresa</th>
-                  <th className="px-3 py-3 font-medium">Data de Pgt</th>
-                  <th className="px-3 py-3 font-medium">Referência</th>
-                  <th className="px-3 py-3 font-medium">Valor</th>
-                  <th className="px-3 py-3 font-medium">Banco</th>
-                  <th className="px-3 py-3 font-medium">NF</th>
-                  <th className="px-3 py-3 font-medium">Status</th>
-                  <th className="px-3 py-3 font-medium">Ações</th>
+                  <th >Empresa</th>
+                  <th >Data de Pgt</th>
+                  <th >Referência</th>
+                  <th >Valor</th>
+                  <th >Banco</th>
+                  <th >NF</th>
+                  <th >Status</th>
+                  <th >Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -1239,9 +1241,9 @@ export function DashboardShell({
                     return (
                       <tr
                         key={payment.id}
-                        className={`border-b border-slate-100 last:border-0 transition-colors ${
-                          selectedIds.has(payment.id) ? 'bg-red-50/40' :
-                          isEditing ? 'bg-brand-50/60' : isDeleting ? 'bg-red-50/60' : 'hover:bg-slate-50'
+                        className={`transition-colors ${
+                          selectedIds.has(payment.id) ? 'bg-red-50' :
+                          isEditing ? 'bg-blue-50' : isDeleting ? 'bg-red-50' : ''
                         }`}
                       >
                         {/* Checkbox de seleção */}
@@ -1255,7 +1257,7 @@ export function DashboardShell({
                         </td>
 
                         {/* Empresa (nunca editável) */}
-                        <td className="px-3 py-3 font-medium text-slate-700 whitespace-nowrap">{payment.company_name}</td>
+                        <td className="font-medium whitespace-nowrap" style={{color:"var(--text-primary)"}}>{payment.company_name}</td>
 
                         {/* Data */}
                         <td className="px-3 py-3">
@@ -1383,14 +1385,14 @@ export function DashboardShell({
                               <button
                                 onClick={() => startEditing(payment)}
                                 title="Editar"
-                                className="rounded-lg bg-slate-100 p-1.5 text-slate-600 hover:bg-brand-100 hover:text-brand-700"
+                                className="btn-icon btn-ghost"
                               >
                                 <Pencil className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => confirmDelete(payment.id)}
                                 title="Excluir"
-                                className="rounded-lg bg-slate-100 p-1.5 text-slate-600 hover:bg-red-100 hover:text-red-700"
+                                className="btn-icon btn-ghost" style={{color:"var(--danger)"}} onMouseEnter={e=>(e.currentTarget as HTMLButtonElement).style.background="var(--danger-bg)"} onMouseLeave={e=>(e.currentTarget as HTMLButtonElement).style.background=""}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
@@ -1417,25 +1419,25 @@ export function DashboardShell({
 
       {/* Modal: confirmação de exclusão em lote */}
       {bulkDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-soft">
-            <h3 className="text-lg font-semibold text-slate-900">Excluir pagamentos</h3>
-            <p className="mt-2 text-sm text-slate-600">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{background:"rgba(15,17,23,0.6)",backdropFilter:"blur(4px)"}}>
+          <div className="card w-full max-w-md p-6 animate-in">
+            <h3 className="text-base font-semibold" style={{color:"var(--text-primary)"}}>Excluir pagamentos</h3>
+            <p className="mt-2 text-sm" style={{color:"var(--text-secondary)"}}>
               Tem certeza que deseja excluir{' '}
               <span className="font-medium text-red-700">{selectedIds.size} pagamento(s)</span>?
               Esta ação não pode ser desfeita.
             </p>
-            <div className="mt-6 flex gap-3">
+            <div className="mt-5 flex gap-2.5">
               <button
                 onClick={handleBulkDelete}
                 disabled={loadingAction === 'bulk-delete'}
-                className="flex-1 rounded-2xl bg-red-600 px-4 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-70"
+                className="btn btn-danger flex-1 justify-center"
               >
                 {loadingAction === 'bulk-delete' ? 'Excluindo...' : 'Confirmar exclusão'}
               </button>
               <button
                 onClick={() => setBulkDeleteConfirm(false)}
-                className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-100"
+                className="btn btn-secondary flex-1 justify-center"
               >
                 Cancelar
               </button>
@@ -1446,10 +1448,10 @@ export function DashboardShell({
 
       {/* Modal: pergunta se quer relançar o pagamento excluído */}
       {reuploadModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-soft">
-            <h3 className="text-lg font-semibold text-slate-900">Lançamento excluído</h3>
-            <p className="mt-2 text-sm text-slate-600">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{background:"rgba(15,17,23,0.6)",backdropFilter:"blur(4px)"}}>
+          <div className="card w-full max-w-md p-6 animate-in">
+            <h3 className="text-base font-semibold" style={{color:"var(--text-primary)"}}>Lançamento excluído</h3>
+            <p className="mt-2 text-sm" style={{color:"var(--text-secondary)"}}>
               O pagamento <span className="font-medium">"{reuploadModal.fileName}"</span> foi excluído.
               Gostaria de lançar novamente?
             </p>
@@ -1472,7 +1474,7 @@ export function DashboardShell({
                 <button
                   type="button"
                   onClick={() => setReuploadModal(null)}
-                  className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-100"
+                  className="btn btn-secondary flex-1 justify-center"
                 >
                   Não
                 </button>
