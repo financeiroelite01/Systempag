@@ -1543,22 +1543,27 @@ export function DashboardShell({
                             </div>
                           ) : isDeleting ? (
                             // Modo confirmação de exclusão
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-red-600 font-medium">Excluir?</span>
+                            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5">
+                              <span className="text-xs font-semibold" style={{color:"var(--danger)"}}>Confirmar exclusão?</span>
                               <button
                                 onClick={() => deletePayment(payment.id)}
                                 disabled={isRemoving}
                                 title="Confirmar exclusão"
-                                className="rounded-lg bg-red-600 p-1.5 text-white hover:bg-red-500 disabled:opacity-60"
+                                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-white disabled:opacity-60 transition-colors"
+                                style={{background:"var(--danger)"}}
+                                onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background="#DC2626"}
+                                onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background="var(--danger)"}
                               >
-                                <Check className="h-4 w-4" />
+                                <Check className="h-3 w-3" />
+                                Sim
                               </button>
                               <button
                                 onClick={cancelDelete}
                                 title="Cancelar"
-                                className="rounded-lg bg-slate-200 p-1.5 text-slate-700 hover:bg-slate-300"
+                                className="btn btn-secondary py-1 px-2 text-xs"
                               >
-                                <X className="h-4 w-4" />
+                                <X className="h-3 w-3" />
+                                Não
                               </button>
                             </div>
                           ) : (
