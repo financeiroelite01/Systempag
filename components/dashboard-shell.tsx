@@ -129,14 +129,49 @@ export function DashboardShell({
   const [reconcileSummary, setReconcileSummary] = useState<ReconciliationSummary | null>(null);
   const [reconcileFilter, setReconcileFilter] = useState<'all' | 'matched' | 'partial' | 'statement_only' | 'payment_only'>('all');
 
+  // ─── Ordenação da lista de pagamentos ────────────────────────────────────────
+  type SortField = 'payment_date' | 'company_name' | 'amount';
+  type SortDir   = 'asc' | 'desc';
+  const [sortField, setSortField] = useState<SortField>('payment_date');
+  const [sortDir,   setSortDir]   = useState<SortDir>('desc');
+
+  function handleSort(field: SortField) {
+    if (field === sortField) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir(field === 'payment_date' ? 'desc' : 'asc');
+    }
+  }
+
   const filteredPayments = useMemo(() => {
-    return payments.filter((p) => {
+    const filtered = payments.filter((p) => {
       if (selectedCompany !== 'all' && p.company_id !== selectedCompany) return false;
       if (startDate && (!p.payment_date || p.payment_date < startDate)) return false;
       if (endDate && (!p.payment_date || p.payment_date > endDate)) return false;
       return true;
     });
-  }, [payments, selectedCompany, startDate, endDate]);
+
+    return [...filtered].sort((a, b) => {
+      let aVal: string | number = '';
+      let bVal: string | number = '';
+
+      if (sortField === 'payment_date') {
+        aVal = a.payment_date ?? '';
+        bVal = b.payment_date ?? '';
+      } else if (sortField === 'company_name') {
+        aVal = a.company_name.toLowerCase();
+        bVal = b.company_name.toLowerCase();
+      } else if (sortField === 'amount') {
+        aVal = Number(a.amount ?? 0);
+        bVal = Number(b.amount ?? 0);
+      }
+
+      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDir === 'asc' ?  1 : -1;
+      return 0;
+    });
+  }, [payments, selectedCompany, startDate, endDate, sortField, sortDir]);
 
   const totalAmount = filteredPayments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
   const processedCount = filteredPayments.filter((p) => p.extraction_status === 'processed').length;
@@ -1337,10 +1372,40 @@ export function DashboardShell({
                       title="Selecionar todos"
                     />
                   </th>
-                  <th >Empresa</th>
-                  <th >Data de Pgt</th>
+                  <th >
+                    <button
+                      onClick={() => handleSort('company_name')}
+                      className="flex items-center gap-1 hover:text-slate-700 transition-colors"
+                    >
+                      Empresa
+                      <span className="text-slate-300">
+                        {sortField === 'company_name' ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
+                    </button>
+                  </th>
+                  <th >
+                    <button
+                      onClick={() => handleSort('payment_date')}
+                      className="flex items-center gap-1 hover:text-slate-700 transition-colors"
+                    >
+                      Data de Pgt
+                      <span className="text-slate-300">
+                        {sortField === 'payment_date' ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
+                    </button>
+                  </th>
                   <th >Referência</th>
-                  <th >Valor</th>
+                  <th >
+                    <button
+                      onClick={() => handleSort('amount')}
+                      className="flex items-center gap-1 hover:text-slate-700 transition-colors"
+                    >
+                      Valor
+                      <span className="text-slate-300">
+                        {sortField === 'amount' ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
+                    </button>
+                  </th>
                   <th >Banco</th>
                   <th >NF</th>
                   <th >Status</th>
