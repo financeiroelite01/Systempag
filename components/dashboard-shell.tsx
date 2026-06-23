@@ -85,6 +85,11 @@ export function DashboardShell({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
+  // ─── Edição de empresa ────────────────────────────────────────────────────────
+  type EditingCompany = { id: string; legalName: string; displayName: string; taxId: string };
+  const [editingCompany, setEditingCompany] = useState<EditingCompany | null>(null);
+  const [deleteCompanyId, setDeleteCompanyId] = useState<string | null>(null);
+
   // Upload em lote
   type BatchFileResult = {
     fileName: string;
@@ -447,6 +452,40 @@ export function DashboardShell({
     if (response.ok) await refreshPayments();
   }
 
+  // ─── Edição de empresa ────────────────────────────────────────────────────────
+  async function handleSaveCompany(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingCompany) return;
+    setLoadingAction('company-edit');
+
+    const response = await fetch(`/api/companies/${editingCompany.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        legalName:   editingCompany.legalName,
+        displayName: editingCompany.displayName,
+        taxId:       editingCompany.taxId,
+      }),
+    });
+
+    const data = await response.json();
+    showFeedback(data.message, response.ok ? 'success' : 'error');
+    setLoadingAction(null);
+    if (response.ok) { setEditingCompany(null); router.refresh(); }
+  }
+
+  async function handleDeleteCompany() {
+    if (!deleteCompanyId) return;
+    setLoadingAction('company-delete');
+
+    const response = await fetch(`/api/companies/${deleteCompanyId}`, { method: 'DELETE' });
+    const data = await response.json();
+    showFeedback(data.message, response.ok ? 'success' : 'error');
+    setLoadingAction(null);
+    setDeleteCompanyId(null);
+    if (response.ok) router.refresh();
+  }
+
   // ─── Exclusão em lote ────────────────────────────────────────────────────────
   function toggleSelect(id: string) {
     setSelectedIds(prev => {
@@ -657,9 +696,9 @@ export function DashboardShell({
             </form>
           </section>
 
-          {/* Lista simples de empresas cadastradas */}
+          {/* Lista de empresas cadastradas */}
           <section className="card p-6 animate-in">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mb-5">
               <div className="rounded-lg p-2.5 flex-shrink-0" style={{background:"var(--accent-light)",color:"var(--accent)"}}>
                 <Building2 className="h-5 w-5" />
               </div>
@@ -668,20 +707,98 @@ export function DashboardShell({
                 <p className="text-xs mt-0.5" style={{color:"var(--text-muted)"}}>{companies.length} empresa(s) no total.</p>
               </div>
             </div>
-            <div className="mt-6 space-y-2">
-              {companies.length === 0 ? (
-                <p className="text-sm text-slate-400">Nenhuma empresa cadastrada ainda.</p>
-              ) : (
-                companies.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between rounded-2xl border border-slate-100 px-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">{c.display_name || c.legal_name}</p>
-                      {c.display_name && <p className="text-xs text-slate-400">{c.legal_name}</p>}
-                    </div>
+
+            {companies.length === 0 ? (
+              <p className="text-sm py-4 text-center" style={{color:"var(--text-muted)"}}>Nenhuma empresa cadastrada ainda.</p>
+            ) : (
+              <div className="space-y-2">
+                {companies.map((c) => (
+                  <div key={c.id}>
+                    {/* Modo visualização */}
+                    {editingCompany?.id !== c.id ? (
+                      <div className="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-slate-50" style={{borderColor:"var(--card-border)"}}>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate" style={{color:"var(--text-primary)"}}>{c.display_name || c.legal_name}</p>
+                          {c.display_name && (
+                            <p className="text-xs truncate mt-0.5" style={{color:"var(--text-muted)"}}>{c.legal_name}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 ml-3 flex-shrink-0">
+                          <button
+                            onClick={() => setEditingCompany({
+                              id: c.id,
+                              legalName: c.legal_name,
+                              displayName: c.display_name ?? '',
+                              taxId: '',
+                            })}
+                            className="btn-icon btn-ghost"
+                            title="Editar empresa"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteCompanyId(c.id)}
+                            className="btn-icon btn-ghost"
+                            title="Excluir empresa"
+                            style={{color:"var(--danger)"}}
+                            onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = "var(--danger-bg)"}
+                            onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = ""}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Modo edição inline */
+                      <form
+                        onSubmit={handleSaveCompany}
+                        className="rounded-lg border-2 p-4 space-y-3"
+                        style={{borderColor:"var(--accent)", background:"var(--accent-light)"}}
+                      >
+                        <p className="text-xs font-semibold uppercase tracking-wide" style={{color:"var(--accent)"}}>Editando empresa</p>
+                        <div className="grid gap-2 md:grid-cols-2">
+                          <input
+                            required
+                            placeholder="Razão social"
+                            value={editingCompany.legalName}
+                            onChange={e => setEditingCompany(prev => prev ? {...prev, legalName: e.target.value} : null)}
+                          />
+                          <input
+                            placeholder="Nome de exibição"
+                            value={editingCompany.displayName}
+                            onChange={e => setEditingCompany(prev => prev ? {...prev, displayName: e.target.value} : null)}
+                          />
+                          <input
+                            placeholder="CNPJ"
+                            value={editingCompany.taxId}
+                            onChange={e => setEditingCompany(prev => prev ? {...prev, taxId: e.target.value} : null)}
+                            className="md:col-span-2"
+                          />
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="submit"
+                            disabled={loadingAction === 'company-edit'}
+                            className="btn btn-primary"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            {loadingAction === 'company-edit' ? 'Salvando...' : 'Salvar'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingCompany(null)}
+                            className="btn btn-secondary"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            Cancelar
+                          </button>
+                        </div>
+                      </form>
+                    )}
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
         </div>
         </>
@@ -1416,6 +1533,33 @@ export function DashboardShell({
         )}
       </section>
       </div>
+
+      {/* Modal: confirmação de exclusão de empresa */}
+      {deleteCompanyId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{background:"rgba(15,17,23,0.6)",backdropFilter:"blur(4px)"}}>
+          <div className="card w-full max-w-md p-6 animate-in">
+            <h3 className="text-base font-semibold" style={{color:"var(--text-primary)"}}>Excluir empresa</h3>
+            <p className="mt-2 text-sm" style={{color:"var(--text-secondary)"}}>
+              Tem certeza que deseja excluir esta empresa? Os pagamentos vinculados <strong>não serão excluídos</strong>, mas ficarão sem empresa associada.
+            </p>
+            <div className="mt-5 flex gap-2.5">
+              <button
+                onClick={handleDeleteCompany}
+                disabled={loadingAction === 'company-delete'}
+                className="btn btn-danger flex-1 justify-center"
+              >
+                {loadingAction === 'company-delete' ? 'Excluindo...' : 'Confirmar exclusão'}
+              </button>
+              <button
+                onClick={() => setDeleteCompanyId(null)}
+                className="btn btn-secondary flex-1 justify-center"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: confirmação de exclusão em lote */}
       {bulkDeleteConfirm && (
