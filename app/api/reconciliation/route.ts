@@ -48,8 +48,14 @@ function parseMonetaryValue(rawCol: string): number | null {
   // Remove o símbolo de moeda e espaços extras
   s = s.replace(/R\$/gi, '').trim();
 
-  // Precisa estar no formato brasileiro: 123,45 ou 1.234,56 (com ou sem sinal de menos)
-  const isMonetaryFormat = /^-?\d{1,3}(\.\d{3})*,\d{2}$/.test(s);
+  // Aceita formato brasileiro COM ou SEM ponto de milhar:
+  //   "836,82"    → ok (até 3 dígitos antes da vírgula)
+  //   "1.100,00"  → ok (com ponto de milhar)
+  //   "1100,00"   → ok (sem ponto de milhar — comum em XLS)
+  //   "20000,00"  → ok
+  // Rejeita: texto puro, datas, etc.
+  const isMonetaryFormat = /^-?\d+,\d{2}$/.test(s) ||
+                           /^-?\d{1,3}(\.\d{3})+,\d{2}$/.test(s);
   if (!isMonetaryFormat) return null;
 
   const normalized = s.replace(/\./g, '').replace(',', '.');
@@ -129,34 +135,58 @@ function parseCSV(text: string): StatementRow[] {
 // ─── Parser de Excel (.xls / .xlsx) ──────────────────────────────────────────
 
 function parseExcel(buffer: Buffer): StatementRow[] {
-  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: false });
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
 
-  // Converte para array de arrays (uma linha = um array de células)
   const data: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
   const rows: StatementRow[] = [];
 
   for (const rawRow of data) {
-    const cols = rawRow.map((cell) => {
-      // Datas do Excel já vêm como objeto Date (cellDates: true)
-      if (cell instanceof Date) {
-        const d = String(cell.getDate()).padStart(2, '0');
-        const m = String(cell.getMonth() + 1).padStart(2, '0');
-        const y = cell.getFullYear();
-        return `${d}/${m}/${y}`;
-      }
-      // Números (valores monetários) — converte para string no padrão BR
-      if (typeof cell === 'number') {
-        return cell.toFixed(2).replace('.', ',');
-      }
-      return String(cell ?? '').trim();
-    });
+    let directDate: string | null = null;
+    let directAmount: number | null = null;
+    let directDescription = '';
 
-    const rawLine = cols.join(' | ');
-    const row = extractRowFromColumns(cols, rawLine);
-    if (row) rows.push(row);
+    for (const cell of rawRow) {
+      // Número puro: captura como valor monetário diretamente (sem converter para string)
+      if (typeof cell === 'number') {
+        if (directAmount === null && Math.abs(cell) > 0.01 && Math.abs(cell) < 10_000_000) {
+          directAmount = cell;
+        }
+        continue;
+      }
+
+      const s = String(cell ?? '').trim();
+      if (!s) continue;
+
+      // Data no formato dd/mm/aaaa (string)
+      const ddmmyyyy = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      const yyyymmdd = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (ddmmyyyy && !directDate) {
+        directDate = `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
+        continue;
+      }
+      if (yyyymmdd && !directDate) {
+        directDate = s;
+        continue;
+      }
+
+      // Texto mais longo = descrição
+      if (s.length > directDescription.length) {
+        directDescription = s;
+      }
+    }
+
+    // Linha válida: tem data + valor numérico
+    if (directDate && directAmount !== null) {
+      rows.push({
+        date: directDate,
+        amount: directAmount,
+        description: directDescription,
+        raw: (rawRow as unknown[]).map(c => String(c ?? '')).join(' | '),
+      });
+    }
   }
 
   return rows;
